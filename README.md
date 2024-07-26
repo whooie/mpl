@@ -62,6 +62,67 @@ included in the JSON file, and what Python code should eventually be included in
 the script. *This library does not validate any Python code whatsoever*. Users
 may also wish to implement `MatplotlibOpts` to add optional keyword arguments.
 
+```rust
+use mpl::{
+    Matplotlib,
+    MatplotlibOpts,
+    Opt,
+    PyValue,
+    AsPy,
+    serde_json::Value,
+};
+
+// example impl for a basic call to `plot`
+
+#[derive(Clone, Debug)]
+struct Plot {
+    x: Vec<f64>,
+    y: Vec<f64>,
+    opts: Vec<Opt>, // optional keyword arguments
+}
+
+impl Plot {
+    /// Create a new `Plot` with no options.
+    fn new<X, Y>(x: X, y: Y) -> Self
+    where
+        X: IntoIterator<Item = f64>,
+        Y: IntoIterator<Item = f64>,
+    {
+        Self {
+            x: x.into_iter().collect(),
+            y: y.into_iter().collect(),
+            opts: Vec::new(),
+        }
+    }
+}
+
+impl Matplotlib for Plot {
+    // Commands with `is_prelude == true` are run first
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into()]))
+    }
+
+    fn py_cmd(&self) -> String {
+        // JSON data is guaranteed to be loaded in a variable called `data`
+        format!("ax.plot(data[0], data[1], {})", self.opts.as_py())
+    }
+}
+
+// allow for keyword arguments to be added
+impl MatplotlibOpts for Plot {
+    fn kwarg<T>(&mut self, key: &str, val: T) -> &mut Self
+    where T: Into<PyValue>
+    {
+        self.opts.push((key, val).into());
+        self
+    }
+}
+```
+
 ## Example
 ```rust
 use std::f64::consts::TAU;

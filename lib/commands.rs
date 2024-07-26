@@ -12,8 +12,13 @@
 //!
 //! assert_eq!(p1, p2);
 //! ```
+//!
+//! **Note**: Several constructors take iterators of flat 3-, 4-, or 6-element
+//! tuples. This is inconvenient with respect to [`Iterator::zip`], so this
+//! module also provides [`Associator`] and [`assoc`] to help with
+//! rearrangement.
 
-use serde_json as json;
+use serde_json::Value;
 use crate::core::{
     Matplotlib,
     MatplotlibOpts,
@@ -27,6 +32,10 @@ use crate::core::{
 /// Direct injection of arbitrary Python.
 ///
 /// See [`Prelude`] for prelude code.
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Raw(pub String);
 
@@ -41,7 +50,7 @@ pub fn raw(s: &str) -> Raw { Raw::new(s) }
 impl Matplotlib for Raw {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { self.0.clone() }
 }
@@ -49,6 +58,10 @@ impl Matplotlib for Raw {
 /// Direct injection of arbitrary Python into the prelude.
 ///
 /// See [`Raw`] for main body code.
+///
+/// Prelude: **Yes**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Prelude(pub String);
 
@@ -63,7 +76,7 @@ pub fn prelude(s: &str) -> Prelude { Prelude::new(s) }
 impl Matplotlib for Prelude {
     fn is_prelude(&self) -> bool { true }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { self.0.clone() }
 }
@@ -75,13 +88,17 @@ impl Matplotlib for Prelude {
 /// `true`.
 ///
 /// See [`PRELUDE`].
+///
+/// Prelude: **Yes**
+///
+/// JSON data: **None**
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct DefPrelude;
 
 impl Matplotlib for DefPrelude {
     fn is_prelude(&self) -> bool { true }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { PRELUDE.into() }
 }
@@ -89,13 +106,17 @@ impl Matplotlib for DefPrelude {
 /// Default initialization of `fig` and `ax` plotting objects.
 ///
 /// See [`INIT`].
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct DefInit;
 
 impl Matplotlib for DefInit {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { INIT.into() }
 }
@@ -109,6 +130,10 @@ impl Matplotlib for DefInit {
 /// ```python
 /// plt.rcParams["{key}"] = {val}
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct RcParam {
     /// Key in `matplotlib.pyplot.rcParams`.
@@ -132,7 +157,7 @@ pub fn rcparam<T: Into<PyValue>>(key: &str, val: T) -> RcParam {
 impl Matplotlib for RcParam {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("plt.rcParams[\"{}\"] = {}", self.key, self.val.as_py())
@@ -144,6 +169,10 @@ impl Matplotlib for RcParam {
 /// ```python
 /// plt.rcParams["text.usetex"] = {0}
 /// ```
+///
+/// Prelude: **Yes**
+///
+/// JSON data: **None**
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct TeX(pub bool);
 
@@ -162,9 +191,9 @@ pub fn tex_on() -> TeX { TeX(true) }
 pub fn tex_off() -> TeX { TeX(false) }
 
 impl Matplotlib for TeX {
-    fn is_prelude(&self) -> bool { false }
+    fn is_prelude(&self) -> bool { true }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("plt.rcParams[\"text.usetex\"] = {}", self.0.as_py())
@@ -176,6 +205,10 @@ impl Matplotlib for TeX {
 /// ```python
 /// ax = {0}
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FocusAx(pub String);
 
@@ -190,7 +223,7 @@ pub fn focus_ax(expr: &str) -> FocusAx { FocusAx::new(expr) }
 impl Matplotlib for FocusAx {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { format!("ax = {}", self.0) }
 }
@@ -200,6 +233,10 @@ impl Matplotlib for FocusAx {
 /// ```python
 /// fig = {0}
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FocusFig(pub String);
 
@@ -214,7 +251,7 @@ pub fn focus_fig(expr: &str) -> FocusFig { FocusFig::new(expr) }
 impl Matplotlib for FocusFig {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { format!("fig = {}", self.0) }
 }
@@ -224,6 +261,10 @@ impl Matplotlib for FocusFig {
 /// ```python
 /// cbar = {0}
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FocusCBar(pub String);
 
@@ -238,7 +279,7 @@ pub fn focus_cbar(expr: &str) -> FocusCBar { FocusCBar::new(expr) }
 impl Matplotlib for FocusCBar {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { format!("cbar = {}", self.0) }
 }
@@ -248,6 +289,10 @@ impl Matplotlib for FocusCBar {
 /// ```python
 /// im = {0}
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FocusIm(pub String);
 
@@ -262,7 +307,7 @@ pub fn focus_im(expr: &str) -> FocusIm { FocusIm::new(expr) }
 impl Matplotlib for FocusIm {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { format!("im = {}", self.0) }
 }
@@ -272,6 +317,10 @@ impl Matplotlib for FocusIm {
 /// ```python
 /// ax.plot({x}, {y}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Plot {
     /// X-coordinates.
@@ -324,12 +373,10 @@ where I: IntoIterator<Item = (f64, f64)>
 impl Matplotlib for Plot {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![x.into(), y.into()]))
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -352,6 +399,10 @@ impl MatplotlibOpts for Plot {
 /// ```python
 /// ax.hist({data}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `list[float]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Hist {
     /// Data set.
@@ -380,10 +431,10 @@ where I: IntoIterator<Item = f64>
 impl Matplotlib for Hist {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let data: Vec<json::Value>
-            = self.data.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(data))
+    fn data(&self) -> Option<Value> {
+        let data: Vec<Value>
+            = self.data.iter().copied().map(Value::from).collect();
+        Some(Value::Array(data))
     }
 
     fn py_cmd(&self) -> String {
@@ -406,6 +457,10 @@ impl MatplotlibOpts for Hist {
 /// ```python
 /// ax.hist2d({data}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Hist2d {
     /// X data set.
@@ -456,12 +511,10 @@ where I: IntoIterator<Item = (f64, f64)>
 impl Matplotlib for Hist2d {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![x.into(), y.into()]))
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -484,6 +537,10 @@ impl MatplotlibOpts for Hist2d {
 /// ```python
 /// ax.scatter({x} {y}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Scatter {
     /// X-coordinates.
@@ -536,12 +593,10 @@ where I: IntoIterator<Item = (f64, f64)>
 impl Matplotlib for Scatter {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![x.into(), y.into()]))
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -559,11 +614,135 @@ impl MatplotlibOpts for Scatter {
     }
 }
 
+/// A vector field plot.
+///
+/// ```python
+/// ax.quiver({x}, {y}, {vx}, {vy}, **{ops})
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float], list[float]]`
+#[derive(Clone, Debug, PartialEq)]
+pub struct Quiver {
+    /// X-coordinates.
+    pub x: Vec<f64>,
+    /// Y-coordinates.
+    pub y: Vec<f64>,
+    /// Vector X-components.
+    pub vx: Vec<f64>,
+    /// Vector Y-components.
+    pub vy: Vec<f64>,
+    /// Optional keyword arguments.
+    pub opts: Vec<Opt>,
+}
+
+impl Quiver {
+    /// Create a new `Quiver` with no options.
+    pub fn new<X, Y, VX, VY>(x: X, y: Y, vx: VX, vy: VY) -> Self
+    where
+        X: IntoIterator<Item = f64>,
+        Y: IntoIterator<Item = f64>,
+        VX: IntoIterator<Item = f64>,
+        VY: IntoIterator<Item = f64>,
+    {
+        Self {
+            x: x.into_iter().collect(),
+            y: y.into_iter().collect(),
+            vx: vx.into_iter().collect(),
+            vy: vy.into_iter().collect(),
+            opts: Vec::new(),
+        }
+    }
+
+    /// Create a new `Quiver` with no options from iterators over coordinate
+    /// pairs.
+    pub fn new_pairs<I, VI>(xy: I, vxy: VI) -> Self
+    where
+        I: IntoIterator<Item = (f64, f64)>,
+        VI: IntoIterator<Item = (f64, f64)>,
+    {
+        let (x, y) = xy.into_iter().unzip();
+        let (vx, vy) = vxy.into_iter().unzip();
+        Self { x, y, vx, vy, opts: Vec::new() }
+    }
+
+    /// Create a new `Quiver` with no options from a single iterator. The first
+    /// two elements of each iterator item should be spatial coordinates and the
+    /// last two should be vector components.
+    pub fn new_data<I>(data: I) -> Self
+    where I: IntoIterator<Item = (f64, f64, f64, f64)>
+    {
+        let (((x, y), vx), vy) = data.into_iter().map(assoc).unzip();
+        Self { x, y, vx, vy, opts: Vec::new() }
+    }
+}
+
+/// Create a new [`Quiver`] with no options.
+pub fn quiver<X, Y, VX, VY>(x: X, y: Y, vx: VX, vy: VY) -> Quiver
+where
+    X: IntoIterator<Item = f64>,
+    Y: IntoIterator<Item = f64>,
+    VX: IntoIterator<Item = f64>,
+    VY: IntoIterator<Item = f64>,
+{
+    Quiver::new(x, y, vx, vy)
+}
+
+/// Create a new [`Quiver`] with no options from iterators over coordinate
+/// pairs.
+pub fn quiver_pairs<I, VI>(xy: I, vxy: VI) -> Quiver
+where
+    I: IntoIterator<Item = (f64, f64)>,
+    VI: IntoIterator<Item = (f64, f64)>,
+{
+    Quiver::new_pairs(xy, vxy)
+}
+
+/// Create a new [`Quiver`] with no options from a single iterator. The first
+/// two elements of each iterator item should be spatial coordinates and
+/// the last two should be vector components.
+pub fn quiver_data<I>(data: I) -> Quiver
+where I: IntoIterator<Item = (f64, f64, f64, f64)>
+{
+    Quiver::new_data(data)
+}
+
+impl Matplotlib for Quiver {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        let vx: Vec<Value> = self.vx.iter().copied().map(Value::from).collect();
+        let vy: Vec<Value> = self.vy.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into(), vx.into(), vy.into()]))
+    }
+
+    fn py_cmd(&self) -> String {
+        format!("ax.quiver(data[0], data[1], data[2], data[3]{}{})",
+            if self.opts.is_empty() { "" } else { ", " },
+            self.opts.as_py(),
+        )
+    }
+}
+
+impl MatplotlibOpts for Quiver {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
+    }
+}
+
 /// A bar plot.
 ///
 /// ```python
 /// ax.bar({x}, {y}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Bar {
     /// X-coordinates.
@@ -616,12 +795,12 @@ where I: IntoIterator<Item = (f64, f64)>
 impl Matplotlib for Bar {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![x.into(), y.into()]))
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value>
+            = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value>
+            = self.y.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -644,6 +823,10 @@ impl MatplotlibOpts for Bar {
 /// ```python
 /// ax.barh({y}, {w}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarH {
     /// Y-coordinates.
@@ -696,12 +879,12 @@ where I: IntoIterator<Item = (f64, f64)>
 impl Matplotlib for BarH {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        let w: Vec<json::Value>
-            = self.w.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![y.into(), w.into()]))
+    fn data(&self) -> Option<Value> {
+        let y: Vec<Value>
+            = self.y.iter().copied().map(Value::from).collect();
+        let w: Vec<Value>
+            = self.w.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![y.into(), w.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -724,6 +907,10 @@ impl MatplotlibOpts for BarH {
 /// ```python
 /// ax.errorbar({x}, {y}, {e}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Errorbar {
     /// X-coordinates.
@@ -756,11 +943,7 @@ impl Errorbar {
     pub fn new_data<I>(data: I) -> Self
     where I: IntoIterator<Item = (f64, f64, f64)>
     {
-        let mut x: Vec<f64> = Vec::new();
-        let mut y: Vec<f64> = Vec::new();
-        let mut e: Vec<f64> = Vec::new();
-        data.into_iter()
-            .for_each(|(xk, yk, ek)| { x.push(xk); y.push(yk); e.push(ek); });
+        let ((x, y), e) = data.into_iter().map(assoc).unzip();
         Self { x, y, e, opts: Vec::new() }
     }
 }
@@ -785,14 +968,11 @@ where I: IntoIterator<Item = (f64, f64, f64)>
 impl Matplotlib for Errorbar {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        let e: Vec<json::Value>
-            = self.e.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![x.into(), y.into(), e.into()]))
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        let e: Vec<Value> = self.e.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into(), e.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -831,6 +1011,10 @@ impl From<FillBetween> for Errorbar {
 /// ```python
 /// ax.errorbar({x}, {y}, [{e_neg}, {e_pos}], **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Errorbar2 {
     /// X-coordinates.
@@ -867,14 +1051,8 @@ impl Errorbar2 {
     pub fn new_data<I>(data: I) -> Self
     where I: IntoIterator<Item = (f64, f64, f64, f64)>
     {
-        let mut x: Vec<f64> = Vec::new();
-        let mut y: Vec<f64> = Vec::new();
-        let mut e_neg: Vec<f64> = Vec::new();
-        let mut e_pos: Vec<f64> = Vec::new();
-        data.into_iter()
-            .for_each(|(xk, yk, emk, epk)| {
-                x.push(xk); y.push(yk); e_neg.push(emk); e_pos.push(epk);
-            });
+        let (((x, y), e_neg), e_pos)
+            = data.into_iter().map(assoc).unzip();
         Self { x, y, e_neg, e_pos, opts: Vec::new() }
     }
 }
@@ -900,16 +1078,14 @@ where I: IntoIterator<Item = (f64, f64, f64, f64)>
 impl Matplotlib for Errorbar2 {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        let e_neg: Vec<json::Value>
-            = self.e_neg.iter().copied().map(json::Value::from).collect();
-        let e_pos: Vec<json::Value>
-            = self.e_pos.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        let e_neg: Vec<Value>
+            = self.e_neg.iter().copied().map(Value::from).collect();
+        let e_pos: Vec<Value>
+            = self.e_pos.iter().copied().map(Value::from).collect();
+        Some(Value::Array(
             vec![x.into(), y.into(), e_neg.into(), e_pos.into()]))
     }
 
@@ -987,6 +1163,10 @@ where I: Iterator<Item = T>
 /// ```python
 /// ax.boxplot({data}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `list[list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Boxplot {
     /// List of data sets.
@@ -1052,16 +1232,16 @@ where I: IntoIterator<Item = f64>
 impl Matplotlib for Boxplot {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let data: Vec<json::Value>
+    fn data(&self) -> Option<Value> {
+        let data: Vec<Value>
             = self.data.iter()
             .map(|row| {
-                let row: Vec<json::Value>
-                    = row.iter().copied().map(json::Value::from).collect();
-                json::Value::Array(row)
+                let row: Vec<Value>
+                    = row.iter().copied().map(Value::from).collect();
+                Value::Array(row)
             })
             .collect();
-        Some(json::Value::Array(data))
+        Some(Value::Array(data))
     }
 
     fn py_cmd(&self) -> String {
@@ -1084,6 +1264,10 @@ impl MatplotlibOpts for Boxplot {
 /// ```python
 /// ax.violinplot({data}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `list[list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Violinplot {
     /// List of data sets.
@@ -1149,16 +1333,16 @@ where I: IntoIterator<Item = f64>
 impl Matplotlib for Violinplot {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let data: Vec<json::Value>
+    fn data(&self) -> Option<Value> {
+        let data: Vec<Value>
             = self.data.iter()
             .map(|row| {
-                let row: Vec<json::Value>
-                    = row.iter().copied().map(json::Value::from).collect();
-                json::Value::Array(row)
+                let row: Vec<Value>
+                    = row.iter().copied().map(Value::from).collect();
+                Value::Array(row)
             })
             .collect();
-        Some(json::Value::Array(data))
+        Some(Value::Array(data))
     }
 
     fn py_cmd(&self) -> String {
@@ -1184,6 +1368,10 @@ impl MatplotlibOpts for Violinplot {
 /// ```python
 /// im = ax.contour({x}, {y}, {z}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[list[float]]]`
 ///
 /// **Note**: No checking is performed for the shapes/sizes of the data arrays.
 #[derive(Clone, Debug, PartialEq)]
@@ -1265,20 +1453,18 @@ where
 impl Matplotlib for Contour {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        let z: Vec<json::Value>
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        let z: Vec<Value>
             = self.z.iter()
             .map(|row| {
-                let row: Vec<json::Value>
-                    = row.iter().copied().map(json::Value::from).collect();
-                json::Value::Array(row)
+                let row: Vec<Value>
+                    = row.iter().copied().map(Value::from).collect();
+                Value::Array(row)
             })
             .collect();
-        Some(json::Value::Array(vec![x.into(), y.into(), z.into()]))
+        Some(Value::Array(vec![x.into(), y.into(), z.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -1304,6 +1490,10 @@ impl MatplotlibOpts for Contour {
 /// ```python
 /// im = ax.contourf({x}, {y}, {z}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[list[float]]]`
 ///
 /// **Note**: No checking is performed for the shapes/sizes of the data arrays.
 #[derive(Clone, Debug, PartialEq)]
@@ -1385,20 +1575,18 @@ where
 impl Matplotlib for Contourf {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        let z: Vec<json::Value>
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        let z: Vec<Value>
             = self.z.iter()
             .map(|row| {
-                let row: Vec<json::Value>
-                    = row.iter().copied().map(json::Value::from).collect();
-                json::Value::Array(row)
+                let row: Vec<Value>
+                    = row.iter().copied().map(Value::from).collect();
+                Value::Array(row)
             })
             .collect();
-        Some(json::Value::Array(vec![x.into(), y.into(), z.into()]))
+        Some(Value::Array(vec![x.into(), y.into(), z.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -1424,6 +1612,10 @@ impl MatplotlibOpts for Contourf {
 /// ```python
 /// im = ax.imshow({data}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `list[list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Imshow {
     /// Image data.
@@ -1483,16 +1675,16 @@ where I: IntoIterator<Item = f64>
 impl Matplotlib for Imshow {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let data: Vec<json::Value>
+    fn data(&self) -> Option<Value> {
+        let data: Vec<Value>
             = self.data.iter()
             .map(|row| {
-                let row: Vec<json::Value>
-                    = row.iter().copied().map(json::Value::from).collect();
-                json::Value::Array(row)
+                let row: Vec<Value>
+                    = row.iter().copied().map(Value::from).collect();
+                Value::Array(row)
             })
             .collect();
-        Some(json::Value::Array(data))
+        Some(Value::Array(data))
     }
 
     fn py_cmd(&self) -> String {
@@ -1508,6 +1700,10 @@ impl Matplotlib for Imshow {
 /// ```python
 /// ax.fill_between({x}, {y1}, {y2}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct FillBetween {
     /// X-coordinates.
@@ -1540,13 +1736,7 @@ impl FillBetween {
     pub fn new_data<I>(data: I) -> Self
     where I: IntoIterator<Item = (f64, f64, f64)>
     {
-        let mut x: Vec<f64> = Vec::new();
-        let mut y1: Vec<f64> = Vec::new();
-        let mut y2: Vec<f64> = Vec::new();
-        data.into_iter()
-            .for_each(|(xk, y1k, y2k)| {
-                x.push(xk); y1.push(y1k); y2.push(y2k);
-            });
+        let ((x, y1), y2) = data.into_iter().map(assoc).unzip();
         Self { x, y1, y2, opts: Vec::new() }
     }
 }
@@ -1571,14 +1761,14 @@ where I: IntoIterator<Item = (f64, f64, f64)>
 impl Matplotlib for FillBetween {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let x: Vec<json::Value>
-            = self.x.iter().copied().map(json::Value::from).collect();
-        let y1: Vec<json::Value>
-            = self.y1.iter().copied().map(json::Value::from).collect();
-        let y2: Vec<json::Value>
-            = self.y2.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![x.into(), y1.into(), y2.into()]))
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value>
+            = self.x.iter().copied().map(Value::from).collect();
+        let y1: Vec<Value>
+            = self.y1.iter().copied().map(Value::from).collect();
+        let y2: Vec<Value>
+            = self.y2.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y1.into(), y2.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -1634,6 +1824,10 @@ impl From<Errorbar2> for FillBetween {
 /// ```python
 /// ax.fill_betweenx({y}, {x1}, {x2}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct FillBetweenX {
     /// Y-coordinates.
@@ -1666,13 +1860,7 @@ impl FillBetweenX {
     pub fn new_data<I>(data: I) -> Self
     where I: IntoIterator<Item = (f64, f64, f64)>
     {
-        let mut y: Vec<f64> = Vec::new();
-        let mut x1: Vec<f64> = Vec::new();
-        let mut x2: Vec<f64> = Vec::new();
-        data.into_iter()
-            .for_each(|(yk, x1k, x2k)| {
-                y.push(yk); x1.push(x1k); x2.push(x2k);
-            });
+        let ((y, x1), x2) = data.into_iter().map(assoc).unzip();
         Self { y, x1, x2, opts: Vec::new() }
     }
 }
@@ -1697,14 +1885,14 @@ where I: IntoIterator<Item = (f64, f64, f64)>
 impl Matplotlib for FillBetweenX {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let y: Vec<json::Value>
-            = self.y.iter().copied().map(json::Value::from).collect();
-        let x1: Vec<json::Value>
-            = self.x1.iter().copied().map(json::Value::from).collect();
-        let x2: Vec<json::Value>
-            = self.x2.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![y.into(), x1.into(), x2.into()]))
+    fn data(&self) -> Option<Value> {
+        let y: Vec<Value>
+            = self.y.iter().copied().map(Value::from).collect();
+        let x1: Vec<Value>
+            = self.x1.iter().copied().map(Value::from).collect();
+        let x2: Vec<Value>
+            = self.x2.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![y.into(), x1.into(), x2.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -1727,6 +1915,10 @@ impl MatplotlibOpts for FillBetweenX {
 /// ```python
 /// ax.axhline({y}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxHLine {
     /// Y-coordinate of the line.
@@ -1748,7 +1940,7 @@ pub fn axhline(y: f64) -> AxHLine { AxHLine::new(y) }
 impl Matplotlib for AxHLine {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.axhline({}{}{})",
@@ -1771,6 +1963,10 @@ impl MatplotlibOpts for AxHLine {
 /// ```python
 /// ax.axvline({x}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxVLine {
     /// X-coordinate of the line.
@@ -1792,7 +1988,7 @@ pub fn axvline(x: f64) -> AxVLine { AxVLine::new(x) }
 impl Matplotlib for AxVLine {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.axvline({}{}{})",
@@ -1840,7 +2036,7 @@ pub fn axline(xy1: (f64, f64), xy2: (f64, f64)) -> AxLine {
 impl Matplotlib for AxLine {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.axline({:?}, {:?}{}{})",
@@ -1887,7 +2083,7 @@ pub fn axlinem(xy: (f64, f64), m: f64) -> AxLineM { AxLineM::new(xy, m) }
 impl Matplotlib for AxLineM {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.axline({:?}, xy2=None, m={}{}{})",
@@ -1911,6 +2107,10 @@ impl MatplotlibOpts for AxLineM {
 /// ```python
 /// ax.pie({data}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `list[float]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pie {
     /// Data values.
@@ -1938,9 +2138,9 @@ where I: IntoIterator<Item = f64>
 impl Matplotlib for Pie {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        Some(json::Value::Array(
-            self.data.iter().copied().map(json::Value::from).collect()))
+    fn data(&self) -> Option<Value> {
+        Some(Value::Array(
+            self.data.iter().copied().map(Value::from).collect()))
     }
 
     fn py_cmd(&self) -> String {
@@ -1963,6 +2163,10 @@ impl MatplotlibOpts for Pie {
 /// ```python
 /// ax.text({x}, {y}, {s}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[float, float, str]`
 ///
 /// See also [`AxText`].
 #[derive(Clone, Debug, PartialEq)]
@@ -1990,8 +2194,8 @@ pub fn text(x: f64, y: f64, s: &str) -> Text { Text::new(x, y, s) }
 impl Matplotlib for Text {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        Some(json::Value::Array(
+    fn data(&self) -> Option<Value> {
+        Some(Value::Array(
                 vec![self.x.into(), self.y.into(), (&*self.s).into()]))
     }
 
@@ -2015,6 +2219,10 @@ impl MatplotlibOpts for Text {
 /// ```python
 /// ax.text({x}, {y}, {s}, transform=ax.transAxes, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[float, float, str]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxText {
     /// X-coordinate.
@@ -2040,8 +2248,8 @@ pub fn axtext(x: f64, y: f64, s: &str) -> AxText { AxText::new(x, y, s) }
 impl Matplotlib for AxText {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        Some(json::Value::Array(
+    fn data(&self) -> Option<Value> {
+        Some(Value::Array(
                 vec![self.x.into(), self.y.into(), (&*self.s).into()]))
     }
 
@@ -2066,6 +2274,10 @@ impl MatplotlibOpts for AxText {
 /// ```python
 /// fig.text({x}, {y}, {s}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[float, float, str]`
 ///
 /// **Note** that this python command calls a method of the `fig` variable,
 /// rather than `ax`.
@@ -2094,8 +2306,8 @@ pub fn figtext(x: f64, y: f64, s: &str) -> FigText { FigText::new(x, y, s) }
 impl Matplotlib for FigText {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        Some(json::Value::Array(
+    fn data(&self) -> Option<Value> {
+        Some(Value::Array(
                 vec![self.x.into(), self.y.into(), (&*self.s).into()]))
     }
 
@@ -2125,6 +2337,10 @@ impl MatplotlibOpts for FigText {
 /// ```python
 /// cbar = fig.colorbar(im, ax=ax, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct Colorbar {
     /// Optional keyword arguments.
@@ -2146,7 +2362,7 @@ pub fn colorbar() -> Colorbar { Colorbar::new() }
 impl Matplotlib for Colorbar {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("cbar = fig.colorbar(im, ax=ax{}{})",
@@ -2168,6 +2384,10 @@ impl MatplotlibOpts for Colorbar {
 /// ```python
 /// ax.set_{axis}scale("{scale}")
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Scale {
     /// Which axis to scale.
@@ -2187,7 +2407,7 @@ pub fn scale(axis: Axis, scale: AxisScale) -> Scale { Scale::new(axis, scale) }
 impl Matplotlib for Scale {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         let ax = format!("{:?}", self.axis).to_lowercase();
@@ -2233,6 +2453,10 @@ pub enum AxisScale {
 /// ```python
 /// ax.set_{axis}lim({min}, {max})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Lim {
     /// Which axis.
@@ -2262,7 +2486,7 @@ pub fn lim(axis: Axis, min: Option<f64>, max: Option<f64>) -> Lim {
 impl Matplotlib for Lim {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         let ax = format!("{:?}", self.axis).to_lowercase();
@@ -2285,6 +2509,10 @@ impl Matplotlib for Lim {
 /// ```python
 /// im.set_clim({min}, {max})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CLim {
     /// Minimum value.
@@ -2310,7 +2538,7 @@ pub fn clim(min: Option<f64>, max: Option<f64>) -> CLim { CLim::new(min, max) }
 impl Matplotlib for CLim {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         let min
@@ -2330,6 +2558,10 @@ impl Matplotlib for CLim {
 /// ```python
 /// ax.set_title("{s}", **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct Title {
     /// Axes title.
@@ -2351,7 +2583,7 @@ pub fn title(s: &str) -> Title { Title::new(s) }
 impl Matplotlib for Title {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.set_title(\"{}\"{}{})",
@@ -2374,6 +2606,10 @@ impl MatplotlibOpts for Title {
 /// ```python
 /// ax.set_xlabel("{s}", **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct Label {
     /// Which axis to label.
@@ -2406,7 +2642,7 @@ pub fn zlabel(s: &str) -> Label { Label::new(Axis::Z, s) }
 impl Matplotlib for Label {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         let ax = format!("{:?}", self.axis).to_lowercase();
@@ -2434,6 +2670,10 @@ impl MatplotlibOpts for Label {
 /// ```python
 /// cbar.set_label("{s}", **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct CLabel {
     /// Colorbar label.
@@ -2455,7 +2695,7 @@ pub fn clabel(s: &str) -> CLabel { CLabel::new(s) }
 impl Matplotlib for CLabel {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("cbar.set_label(\"{}\"{}{})",
@@ -2478,6 +2718,10 @@ impl MatplotlibOpts for CLabel {
 /// ```python
 /// ax.set_{axis}ticks({v}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `list[float]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ticks {
     /// Which axis.
@@ -2528,10 +2772,9 @@ where I: IntoIterator<Item = f64>
 impl Matplotlib for Ticks {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let v: Vec<json::Value>
-            = self.v.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(v))
+    fn data(&self) -> Option<Value> {
+        let v: Vec<Value> = self.v.iter().copied().map(Value::from).collect();
+        Some(Value::Array(v))
     }
 
     fn py_cmd(&self) -> String {
@@ -2558,6 +2801,10 @@ impl MatplotlibOpts for Ticks {
 /// ```python
 /// cbar.set_ticks({v}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `list[float]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct CTicks {
     /// Tick values.
@@ -2585,10 +2832,10 @@ where I: IntoIterator<Item = f64>
 impl Matplotlib for CTicks {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let v: Vec<json::Value>
-            = self.v.iter().copied().map(json::Value::from).collect();
-        Some(json::Value::Array(v))
+    fn data(&self) -> Option<Value> {
+        let v: Vec<Value>
+            = self.v.iter().copied().map(Value::from).collect();
+        Some(Value::Array(v))
     }
 
     fn py_cmd(&self) -> String {
@@ -2611,6 +2858,10 @@ impl MatplotlibOpts for CTicks {
 /// ```python
 /// ax.set_{axis}ticks({v}, labels={s}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[str]]`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TickLabels {
     /// Which axis.
@@ -2735,12 +2986,10 @@ where
 impl Matplotlib for TickLabels {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let v: Vec<json::Value>
-            = self.v.iter().copied().map(json::Value::from).collect();
-        let s: Vec<json::Value>
-            = self.s.iter().cloned().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![v.into(), s.into()]))
+    fn data(&self) -> Option<Value> {
+        let v: Vec<Value> = self.v.iter().copied().map(Value::from).collect();
+        let s: Vec<Value> = self.s.iter().cloned().map(Value::from).collect();
+        Some(Value::Array(vec![v.into(), s.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -2767,6 +3016,10 @@ impl MatplotlibOpts for TickLabels {
 /// ```python
 /// cbar.set_ticks({v}, labels={s}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[str]]`
 #[derive(Clone, Debug, PartialEq)]
 pub struct CTickLabels {
     /// Tick values.
@@ -2828,12 +3081,12 @@ where
 impl Matplotlib for CTickLabels {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> {
-        let v: Vec<json::Value>
-            = self.v.iter().copied().map(json::Value::from).collect();
-        let s: Vec<json::Value>
-            = self.s.iter().cloned().map(json::Value::from).collect();
-        Some(json::Value::Array(vec![v.into(), s.into()]))
+    fn data(&self) -> Option<Value> {
+        let v: Vec<Value>
+            = self.v.iter().copied().map(Value::from).collect();
+        let s: Vec<Value>
+            = self.s.iter().cloned().map(Value::from).collect();
+        Some(Value::Array(vec![v.into(), s.into()]))
     }
 
     fn py_cmd(&self) -> String {
@@ -2856,6 +3109,10 @@ impl MatplotlibOpts for CTickLabels {
 /// ```python
 /// ax.tick_params({axis}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct TickParams {
     /// Which axis.
@@ -2883,7 +3140,7 @@ pub fn ytick_params() -> TickParams { TickParams::new(Axis2::Y) }
 impl Matplotlib for TickParams {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.tick_params(\"{}\"{}{})",
@@ -2917,6 +3174,10 @@ pub enum Axis2 {
 /// ```python
 /// fig.suptitle({s}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct SupTitle {
     /// Figure title.
@@ -2938,7 +3199,7 @@ pub fn suptitle(s: &str) -> SupTitle { SupTitle::new(s) }
 impl Matplotlib for SupTitle {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("fig.suptitle(\"{}\"{}{})",
@@ -2961,6 +3222,10 @@ impl MatplotlibOpts for SupTitle {
 /// ```python
 /// fig.supxlabel({s}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct SupXLabel {
     /// Figure X label.
@@ -2982,7 +3247,7 @@ pub fn supxlabel(s: &str) -> SupXLabel { SupXLabel::new(s) }
 impl Matplotlib for SupXLabel {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("fig.supxlabel(\"{}\"{}{})",
@@ -3005,6 +3270,10 @@ impl MatplotlibOpts for SupXLabel {
 /// ```python
 /// fig.supylabel({s}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct SupYLabel {
     /// Figure title.
@@ -3026,7 +3295,7 @@ pub fn supylabel(s: &str) -> SupYLabel { SupYLabel::new(s) }
 impl Matplotlib for SupYLabel {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("fig.supylabel(\"{}\"{}{})",
@@ -3049,6 +3318,10 @@ impl MatplotlibOpts for SupYLabel {
 /// ```python
 /// ax.legend(**{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct Legend {
     /// Optional keyword arguments.
@@ -3072,7 +3345,7 @@ pub fn legend() -> Legend { Legend::new() }
 impl Matplotlib for Legend {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.legend({})", self.opts.as_py())
@@ -3091,6 +3364,10 @@ impl MatplotlibOpts for Legend {
 /// ```python
 /// ax.grid({onoff}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct Grid {
     /// On/off setting.
@@ -3110,7 +3387,7 @@ pub fn grid(onoff: bool) -> Grid { Grid::new(onoff) }
 impl Matplotlib for Grid {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.grid({}, {})", self.onoff.as_py(), self.opts.as_py())
@@ -3122,6 +3399,10 @@ impl Matplotlib for Grid {
 /// ```python
 /// fig.tight_layout(**{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct TightLayout {
     /// Optional keyword arguments.
@@ -3143,7 +3424,7 @@ pub fn tight_layout() -> TightLayout { TightLayout::new() }
 impl Matplotlib for TightLayout {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("fig.tight_layout({})", self.opts.as_py())
@@ -3164,6 +3445,10 @@ impl MatplotlibOpts for TightLayout {
 /// ```python
 /// ax = ax.inset_axes([{x}, {y}, {w}, {h}], **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct InsetAxes {
     /// X-coordinate of the lower-left corner of the inset.
@@ -3205,7 +3490,7 @@ pub fn inset_axes_pairs(xy: (f64, f64), wh: (f64, f64)) -> InsetAxes {
 impl Matplotlib for InsetAxes {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax = ax.inset_axes([{}, {}, {}, {}]{}{})",
@@ -3226,10 +3511,566 @@ impl MatplotlibOpts for InsetAxes {
     }
 }
 
-// streamplot
-// surface
-// trisurf
-// quiver
+/// A (*x*, *y*, *z*) plot.
+///
+/// ```python
+/// ax.plot({x}, {y}, {z}, **{opts})
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float]]`
+#[derive(Clone, Debug, PartialEq)]
+pub struct Plot3 {
+    /// X-coordinates.
+    pub x: Vec<f64>,
+    /// Y-coordinates.
+    pub y: Vec<f64>,
+    /// Z-coordinates.
+    pub z: Vec<f64>,
+    /// Optional keyword arguments.
+    pub opts: Vec<Opt>,
+}
+
+impl Plot3 {
+    /// Create a new `Plot3` with no options.
+    pub fn new<X, Y, Z>(x: X, y: Y, z: Z) -> Self
+    where
+        X: IntoIterator<Item = f64>,
+        Y: IntoIterator<Item = f64>,
+        Z: IntoIterator<Item = f64>,
+    {
+        Self {
+            x: x.into_iter().collect(),
+            y: y.into_iter().collect(),
+            z: z.into_iter().collect(),
+            opts: Vec::new(),
+        }
+    }
+
+    /// Create a new `Plot3` with no options from a single iterator.
+    pub fn new_data<I>(data: I) -> Self
+    where I: IntoIterator<Item = (f64, f64, f64)>
+    {
+        let ((x, y), z) = data.into_iter().map(assoc).unzip();
+        Self { x, y, z, opts: Vec::new() }
+    }
+}
+
+/// Create a new [`Plot3`] with no options.
+pub fn plot3<X, Y, Z>(x: X, y: Y, z: Z) -> Plot3
+where
+    X: IntoIterator<Item = f64>,
+    Y: IntoIterator<Item = f64>,
+    Z: IntoIterator<Item = f64>,
+{
+    Plot3::new(x, y, z)
+}
+
+/// Create a new [`Plot3`] with no options from a single iterator.
+pub fn plot3_data<I>(data: I) -> Plot3
+where I: IntoIterator<Item = (f64, f64, f64)>
+{
+    Plot3::new_data(data)
+}
+
+impl Matplotlib for Plot3 {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value>
+            = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value>
+            = self.y.iter().copied().map(Value::from).collect();
+        let z: Vec<Value>
+            = self.z.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into(), z.into()]))
+    }
+
+    fn py_cmd(&self) -> String {
+        format!("ax.plot(data[0], data[1], data[2]{}{})",
+            if self.opts.is_empty() { "" } else { ", " },
+            self.opts.as_py(),
+        )
+    }
+}
+
+impl MatplotlibOpts for Plot3 {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
+    }
+}
+
+/// A (*x*, *y*, *z*) scatter plot.
+///
+/// ```python
+/// ax.scatter({x}, {y}, {z}, **{opts})
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float]]`
+#[derive(Clone, Debug, PartialEq)]
+pub struct Scatter3 {
+    /// X-coordinates.
+    pub x: Vec<f64>,
+    /// Y-coordinates.
+    pub y: Vec<f64>,
+    /// Z-coordinates.
+    pub z: Vec<f64>,
+    /// Optional keyword arguments.
+    pub opts: Vec<Opt>,
+}
+
+impl Scatter3 {
+    /// Create a new `Scatter3` with no options.
+    pub fn new<X, Y, Z>(x: X, y: Y, z: Z) -> Self
+    where
+        X: IntoIterator<Item = f64>,
+        Y: IntoIterator<Item = f64>,
+        Z: IntoIterator<Item = f64>,
+    {
+        Self {
+            x: x.into_iter().collect(),
+            y: y.into_iter().collect(),
+            z: z.into_iter().collect(),
+            opts: Vec::new(),
+        }
+    }
+
+    /// Create a new `Scatter3` with no options from a single iterator.
+    pub fn new_data<I>(data: I) -> Self
+    where I: IntoIterator<Item = (f64, f64, f64)>
+    {
+        let ((x, y), z) = data.into_iter().map(assoc).unzip();
+        Self { x, y, z, opts: Vec::new() }
+    }
+}
+
+/// Create a new [`Scatter3`] with no options.
+pub fn scatter3<X, Y, Z>(x: X, y: Y, z: Z) -> Scatter3
+where
+    X: IntoIterator<Item = f64>,
+    Y: IntoIterator<Item = f64>,
+    Z: IntoIterator<Item = f64>,
+{
+    Scatter3::new(x, y, z)
+}
+
+/// Create a new [`Scatter3`] with no options from a single iterator.
+pub fn scatter3_data<I>(data: I) -> Scatter3
+where I: IntoIterator<Item = (f64, f64, f64)>
+{
+    Scatter3::new_data(data)
+}
+
+impl Matplotlib for Scatter3 {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value>
+            = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value>
+            = self.y.iter().copied().map(Value::from).collect();
+        let z: Vec<Value>
+            = self.z.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into(), z.into()]))
+    }
+
+    fn py_cmd(&self) -> String {
+        format!("ax.scatter(data[0], data[1], data[2]{}{})",
+            if self.opts.is_empty() { "" } else { ", " },
+            self.opts.as_py(),
+        )
+    }
+}
+
+impl MatplotlibOpts for Scatter3 {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
+    }
+}
+
+/// A 3D vector field plot.
+///
+/// ```python
+/// ax.quiver({x}, {y}, {z}, {vx}, {vy}, {vz}, **{ops})
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float], list[float], list[float], list[float]]`
+#[derive(Clone, Debug, PartialEq)]
+pub struct Quiver3 {
+    /// X-coordinates.
+    pub x: Vec<f64>,
+    /// Y-coordinates.
+    pub y: Vec<f64>,
+    /// Z-coordinates.
+    pub z: Vec<f64>,
+    /// Vector X-components.
+    pub vx: Vec<f64>,
+    /// Vector Y-components.
+    pub vy: Vec<f64>,
+    /// Vector Z-components.
+    pub vz: Vec<f64>,
+    /// Optional keyword arguments.
+    pub opts: Vec<Opt>,
+}
+
+impl Quiver3 {
+    /// Create a new `Quiver3` with no options.
+    pub fn new<X, Y, Z, VX, VY, VZ>(x: X, y: Y, z: Z, vx: VX, vy: VY, vz: VZ)
+        -> Self
+    where
+        X: IntoIterator<Item = f64>,
+        Y: IntoIterator<Item = f64>,
+        Z: IntoIterator<Item = f64>,
+        VX: IntoIterator<Item = f64>,
+        VY: IntoIterator<Item = f64>,
+        VZ: IntoIterator<Item = f64>,
+    {
+        Self {
+            x: x.into_iter().collect(),
+            y: y.into_iter().collect(),
+            z: z.into_iter().collect(),
+            vx: vx.into_iter().collect(),
+            vy: vy.into_iter().collect(),
+            vz: vz.into_iter().collect(),
+            opts: Vec::new(),
+        }
+    }
+
+    /// Create a new `Quiver3` with no options from iterators over coordinate
+    /// triples.
+    pub fn new_triples<I, VI>(xyz: I, vxyz: VI) -> Self
+    where
+        I: IntoIterator<Item = (f64, f64, f64)>,
+        VI: IntoIterator<Item = (f64, f64, f64)>,
+    {
+        let ((x, y), z) = xyz.into_iter().map(assoc).unzip();
+        let ((vx, vy), vz) = vxyz.into_iter().map(assoc).unzip();
+        Self { x, y, z, vx, vy, vz, opts: Vec::new() }
+    }
+
+    /// Create a new `Quiver3` with no options from a single iterator. The first
+    /// three elements of each iterator item should be spatial coordinates and
+    /// the last three should be vector components.
+    pub fn new_data<I>(data: I) -> Self
+    where I: IntoIterator<Item = (f64, f64, f64, f64, f64, f64)>
+    {
+        let (((((x, y), z), vx), vy), vz) = data.into_iter().map(assoc).unzip();
+        Self { x, y, z, vx, vy, vz, opts: Vec::new() }
+    }
+}
+
+/// Create a new [`Quiver3`] with no options.
+pub fn quiver3<X, Y, Z, VX, VY, VZ>(x: X, y: Y, z: Z, vx: VX, vy: VY, vz: VZ)
+    -> Quiver3
+where
+    X: IntoIterator<Item = f64>,
+    Y: IntoIterator<Item = f64>,
+    Z: IntoIterator<Item = f64>,
+    VX: IntoIterator<Item = f64>,
+    VY: IntoIterator<Item = f64>,
+    VZ: IntoIterator<Item = f64>,
+{
+    Quiver3::new(x, y, z, vx, vy, vz)
+}
+
+/// Create a new [`Quiver3`] with no options from iterators over coordinate
+/// triples.
+pub fn quiver3_triples<I, VI>(xyz: I, vxyz: VI) -> Quiver3
+where
+    I: IntoIterator<Item = (f64, f64, f64)>,
+    VI: IntoIterator<Item = (f64, f64, f64)>,
+{
+    Quiver3::new_triples(xyz, vxyz)
+}
+
+/// Create a new [`Quiver3`] with no options from a single iterator.
+///
+/// The first three elements of each iterator item should be spatial coordinates
+/// and the last three should be vector components.
+pub fn quiver3_data<I>(data: I) -> Quiver3
+where I: IntoIterator<Item = (f64, f64, f64, f64, f64, f64)>
+{
+    Quiver3::new_data(data)
+}
+
+impl Matplotlib for Quiver3 {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        let z: Vec<Value> = self.z.iter().copied().map(Value::from).collect();
+        let vx: Vec<Value> = self.vx.iter().copied().map(Value::from).collect();
+        let vy: Vec<Value> = self.vy.iter().copied().map(Value::from).collect();
+        let vz: Vec<Value> = self.vz.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![
+                x.into(), y.into(), z.into(), vx.into(), vy.into(), vz.into()]))
+    }
+
+    fn py_cmd(&self) -> String {
+        format!(
+            "ax.quiver(\
+            data[0], data[1], data[2], data[3], data[4], data[5]{}{})",
+            if self.opts.is_empty() { "" } else { ", " },
+            self.opts.as_py(),
+        )
+    }
+}
+
+impl MatplotlibOpts for Quiver3 {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
+    }
+}
+
+/// A 3D surface plot.
+///
+/// ```python
+/// ax.plot_surface({x}, {y}, {z}, **{opts})
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[list[float]], list[list[float]], list[list[float]]]`
+#[derive(Clone, Debug, PartialEq)]
+pub struct Surface {
+    /// X-coordinates.
+    pub x: Vec<Vec<f64>>,
+    /// Y-coordinates.
+    pub y: Vec<Vec<f64>>,
+    /// Z-coordinates.
+    pub z: Vec<Vec<f64>>,
+    /// Optional keyword arguments.
+    pub opts: Vec<Opt>,
+}
+
+impl Surface {
+    /// Create a new `Surface` with no options.
+    pub fn new<XI, XJ, YI, YJ, ZI, ZJ>(x: XI, y: YI, z: ZI) -> Self
+    where
+        XI: IntoIterator<Item = XJ>,
+        XJ: IntoIterator<Item = f64>,
+        YI: IntoIterator<Item = YJ>,
+        YJ: IntoIterator<Item = f64>,
+        ZI: IntoIterator<Item = ZJ>,
+        ZJ: IntoIterator<Item = f64>,
+    {
+        let x: Vec<Vec<f64>>
+            = x.into_iter()
+            .map(|row| row.into_iter().collect())
+            .collect();
+        let y: Vec<Vec<f64>>
+            = y.into_iter()
+            .map(|row| row.into_iter().collect())
+            .collect();
+        let z: Vec<Vec<f64>>
+            = z.into_iter()
+            .map(|row| row.into_iter().collect())
+            .collect();
+        Self { x, y, z, opts: Vec::new() }
+    }
+
+    /// Create a new `Surface` from flattened, column-major iterators over
+    /// coordinate data with row length `rowlen`.
+    ///
+    /// *Panics if `rowlen == 0`*.
+    pub fn new_flat<X, Y, Z>(x: X, y: Y, z: Z, rowlen: usize) -> Self
+    where
+        X: IntoIterator<Item = f64>,
+        Y: IntoIterator<Item = f64>,
+        Z: IntoIterator<Item = f64>,
+    {
+        if rowlen == 0 { panic!("row length cannot be zero"); }
+        let x: Vec<Vec<f64>>
+            = Chunks::new(x.into_iter(), rowlen)
+            .collect();
+        let y: Vec<Vec<f64>>
+            = Chunks::new(y.into_iter(), rowlen)
+            .collect();
+        let z: Vec<Vec<f64>>
+            = Chunks::new(z.into_iter(), rowlen)
+            .collect();
+        Self { x, y, z, opts: Vec::new() }
+    }
+
+    /// Create a new `Surface` from a single flattened, row-major iterator over
+    /// coordinate data with row length `rowlen`.
+    ///
+    /// *Panics if `rowlen == 0`*.
+    pub fn new_data<I>(data: I, rowlen: usize) -> Self
+    where I: IntoIterator<Item = (f64, f64, f64)>
+    {
+        if rowlen == 0 { panic!("row length cannot be zero"); }
+        let mut x: Vec<Vec<f64>> = Vec::new();
+        let mut y: Vec<Vec<f64>> = Vec::new();
+        let mut z: Vec<Vec<f64>> = Vec::new();
+        Chunks::new(data.into_iter(), rowlen)
+            .for_each(|points| {
+                let mut xi: Vec<f64> = Vec::with_capacity(rowlen);
+                let mut yi: Vec<f64> = Vec::with_capacity(rowlen);
+                let mut zi: Vec<f64> = Vec::with_capacity(rowlen);
+                points.into_iter()
+                    .for_each(|(xij, yij, zij)| {
+                        xi.push(xij); yi.push(yij); zi.push(zij);
+                    });
+                x.push(xi); y.push(yi); z.push(zi);
+            });
+        Self { x, y, z, opts: Vec::new() }
+    }
+}
+
+/// Create a new [`Surface`] with no options.
+pub fn surface<XI, XJ, YI, YJ, ZI, ZJ>(x: XI, y: YI, z: ZI) -> Surface
+where
+    XI: IntoIterator<Item = XJ>,
+    XJ: IntoIterator<Item = f64>,
+    YI: IntoIterator<Item = YJ>,
+    YJ: IntoIterator<Item = f64>,
+    ZI: IntoIterator<Item = ZJ>,
+    ZJ: IntoIterator<Item = f64>,
+{
+    Surface::new(x, y, z)
+}
+
+/// Create a new [`Surface`] from flattened, column-major iterators over
+/// coordinate data with row length `rowlen`.
+///
+/// *Panics if `rowlen == 0`*.
+pub fn surface_flat<X, Y, Z>(x: X, y: Y, z: Z, rowlen: usize) -> Surface
+where
+    X: IntoIterator<Item = f64>,
+    Y: IntoIterator<Item = f64>,
+    Z: IntoIterator<Item = f64>,
+{
+    Surface::new_flat(x, y, z, rowlen)
+}
+
+/// Create a new [`Surface`] from a single flattened, row-major iterator over
+/// coordinate data with row length `rowlen`.
+///
+/// *Panics if `rowlen == 0`*.
+pub fn surface_data<I>(data: I, rowlen: usize) -> Surface
+where I: IntoIterator<Item = (f64, f64, f64)>
+{
+    Surface::new_data(data, rowlen)
+}
+
+impl Matplotlib for Surface {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value>
+            = self.x.iter()
+            .map(|row| {
+                let row: Vec<Value>
+                    = row.iter().copied().map(Value::from).collect();
+                Value::Array(row)
+            })
+            .collect();
+        let y: Vec<Value>
+            = self.y.iter()
+            .map(|row| {
+                let row: Vec<Value>
+                    = row.iter().copied().map(Value::from).collect();
+                Value::Array(row)
+            })
+            .collect();
+        let z: Vec<Value>
+            = self.z.iter()
+            .map(|row| {
+                let row: Vec<Value>
+                    = row.iter().copied().map(Value::from).collect();
+                Value::Array(row)
+            })
+            .collect();
+        Some(Value::Array(vec![x.into(), y.into(), z.into()]))
+    }
+
+    fn py_cmd(&self) -> String {
+        format!("ax.plot_surface(data[0], data[1], data[2]{}{})",
+            if self.opts.is_empty() { "" } else { ", " },
+            self.opts.as_py(),
+        )
+    }
+}
+
+impl MatplotlibOpts for Surface {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
+    }
+}
+
+/// A 3D surface plot using triangulation.
+///
+/// ```python
+/// ax.plot_trisurf({x}, {y}, {z}, **{opts})
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: `[list[float], list[float], list[float]]`
+#[derive(Clone, Debug, PartialEq)]
+pub struct Trisurf {
+    /// X-coordinates.
+    pub x: Vec<f64>,
+    /// Y-coordinates.
+    pub y: Vec<f64>,
+    /// Z-coordinates.
+    pub z: Vec<f64>,
+    /// Optional keyword arguments.
+    pub opts: Vec<Opt>,
+}
+
+impl Trisurf {
+    /// Create a new `Trisurf` with no options.
+    pub fn new<X, Y, Z>(x: X, y: Y, z: Z) -> Self
+    where
+        X: IntoIterator<Item = f64>,
+        Y: IntoIterator<Item = f64>,
+        Z: IntoIterator<Item = f64>,
+    {
+        Self {
+            x: x.into_iter().collect(),
+            y: y.into_iter().collect(),
+            z: z.into_iter().collect(),
+            opts: Vec::new(),
+        }
+    }
+
+    /// Create a new `Trisurf` with no options from a single iterator.
+    pub fn new_data<I>(data: I) -> Self
+    where I: IntoIterator<Item = (f64, f64, f64)>
+    {
+        let ((x, y), z) = data.into_iter().map(assoc).unzip();
+        Self { x, y, z, opts: Vec::new() }
+    }
+}
+
+/// Create a new [`Trisurf`] with no options.
+pub fn trisurf<X, Y, Z>(x: X, y: Y, z: Z) -> Trisurf
+where
+    X: IntoIterator<Item = f64>,
+    Y: IntoIterator<Item = f64>,
+    Z: IntoIterator<Item = f64>,
+{
+    Trisurf::new(x, y, z)
+}
+
+/// Create a new [`Trisurf`] with no options from a single iterator.
+pub fn trisurf_data<I>(data: I) -> Trisurf
+where I: IntoIterator<Item = (f64, f64, f64)>
+{
+    Trisurf::new_data(data)
+}
 
 /// Set the view on a set of 3D axes.
 ///
@@ -3238,6 +4079,10 @@ impl MatplotlibOpts for InsetAxes {
 /// ```python
 /// ax.view_init(azim={azim}, elev={elev}, **{opts})
 /// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
 #[derive(Clone, Debug, PartialEq)]
 pub struct ViewInit {
     /// Azimuthal angle.
@@ -3261,7 +4106,7 @@ pub fn view_init(azim: f64, elev: f64) -> ViewInit { ViewInit::new(azim, elev) }
 impl Matplotlib for ViewInit {
     fn is_prelude(&self) -> bool { false }
 
-    fn data(&self) -> Option<json::Value> { None }
+    fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
         format!("ax.view_init(azim={}, elev={}{}{})",
@@ -3278,5 +4123,156 @@ impl MatplotlibOpts for ViewInit {
         self.opts.push((key, val).into());
         self
     }
+}
+
+/// Rearrange the grouping of tuples.
+///
+/// Although this trait can in principle describe any effective isomorphism
+/// between two types, the implementations in this crate focus on those
+/// describing how tuples can be rearranged trivially. That is, this crate
+/// implements `Associator` to perform "flattening" (or "unflattening")
+/// operations on tuples of few to several elements.
+///
+/// This is helpful in interfacing chains of calls to [`Iterator::zip`] with
+/// several constructors in this module that require iterators over "flat"
+/// tuples.
+/// ```
+/// use mpl::commands::assoc;
+///
+/// let x = vec![1,    2,     3_usize];
+/// let y = vec!['a',  'b',   'c'    ];
+/// let z = vec![true, false, true   ];
+///
+/// let flat: Vec<(usize, char, bool)>
+///     = x.iter().copied()
+///     .zip(y.iter().copied())
+///     .zip(z.iter().copied()) // element type is ((usize, char), bool)
+///     .map(assoc) // ((A, B), C) -> (A, B, C)
+///     .collect();
+///
+/// assert_eq!(flat, vec![(1, 'a', true), (2, 'b', false), (3, 'c', true)]);
+///
+/// // can also be used for unzipping
+/// let ((x2, y2), z2): ((Vec<usize>, Vec<char>), Vec<bool>)
+///     = flat.into_iter().map(assoc).unzip();
+///
+/// assert_eq!(x2, x);
+/// assert_eq!(y2, y);
+/// assert_eq!(z2, z);
+/// ```
+pub trait Associator<P> {
+    /// Rearrange the elements of `self`.
+    fn assoc(self) -> P;
+}
+
+// there may be a way to do all these with recursive macros, but I'm too dumb
+// for it; instead, we'll bootstrap with four base impls:
+
+impl<A, B, C> Associator<((A, B), C)> for (A, B, C) {
+    fn assoc(self) -> ((A, B), C) { ((self.0, self.1), self.2) }
+}
+
+impl<A, B, C> Associator<(A, B, C)> for ((A, B), C) {
+    fn assoc(self) -> (A, B, C) { (self.0.0, self.0.1, self.1) }
+}
+
+impl<A, B, C> Associator<(A, (B, C))> for (A, B, C) {
+    fn assoc(self) -> (A, (B, C)) { (self.0, (self.1, self.2)) }
+}
+
+impl<A, B, C> Associator<(A, B, C)> for (A, (B, C)) {
+    fn assoc(self) -> (A, B, C) { (self.0, self.1.0, self.1.1) }
+}
+
+// now use the base impls to cover cases with more elements
+
+macro_rules! impl_biassoc {
+    (
+        <$( $gen:ident ),+>,
+        $pair:ty,
+        ($( $l:ident ),+),
+        $r:ident $(,)?
+    ) => {
+        impl<$( $gen ),+> Associator<$pair> for ($( $gen ),+) {
+            fn assoc(self) -> $pair {
+                let ($( $l ),+, $r) = self;
+                (($( $l ),+).assoc(), $r)
+            }
+        }
+
+        impl<$( $gen ),+> Associator<($( $gen ),+)> for $pair {
+            fn assoc(self) -> ($( $gen ),+) {
+                let ($( $l ),+) = self.0.assoc();
+                ($( $l ),+, self.1)
+            }
+        }
+    };
+    (
+        <$( $gen:ident ),+>,
+        $pair:ty,
+        $l:ident,
+        ($( $r:ident ),+) $(,)?
+    ) => {
+        impl<$( $gen ),+> Associator<$pair> for ($( $gen ),+) {
+            fn assoc(self) -> $pair {
+                let ($l, $( $r ),+) = self;
+                ($l, ($( $r ),+).assoc())
+            }
+        }
+
+        impl<$( $gen ),+> Associator<($( $gen ),+)> for $pair {
+            fn assoc(self) -> ($( $gen ),+) {
+                let ($( $r ),+) = self.1.assoc();
+                (self.0, $( $r ),+)
+            }
+        }
+    };
+}
+
+impl_biassoc!(<A, B, C, D>, (((A, B), C), D), (a, b, c), d);
+impl_biassoc!(<A, B, C, D>, ((A, (B, C)), D), (a, b, c), d);
+impl_biassoc!(<A, B, C, D>, (A, ((B, C), D)), a, (b, c, d));
+impl_biassoc!(<A, B, C, D>, (A, (B, (C, D))), a, (b, c, d));
+impl_biassoc!(<A, B, C, D, E>, ((((A, B), C), D), E), (a, b, c, d), e);
+impl_biassoc!(<A, B, C, D, E>, (((A, (B, C)), D), E), (a, b, c, d), e);
+impl_biassoc!(<A, B, C, D, E>, ((A, ((B, C), D)), E), (a, b, c, d), e);
+impl_biassoc!(<A, B, C, D, E>, ((A, (B, (C, D))), E), (a, b, c, d), e);
+impl_biassoc!(<A, B, C, D, E>, (A, (((B, C), D), E)), a, (b, c, d, e));
+impl_biassoc!(<A, B, C, D, E>, (A, ((B, (C, D)), E)), a, (b, c, d, e));
+impl_biassoc!(<A, B, C, D, E>, (A, (B, ((C, D), E))), a, (b, c, d, e));
+impl_biassoc!(<A, B, C, D, E>, (A, (B, (C, (D, E)))), a, (b, c, d, e));
+impl_biassoc!(<A, B, C, D, E, F>, (((((A, B), C), D), E), F), (a, b, c, d, e), f);
+impl_biassoc!(<A, B, C, D, E, F>, ((((A, (B, C)), D), E), F), (a, b, c, d, e), f);
+impl_biassoc!(<A, B, C, D, E, F>, (((A, ((B, C), D)), E), F), (a, b, c, d, e), f);
+impl_biassoc!(<A, B, C, D, E, F>, (((A, (B, (C, D))), E), F), (a, b, c, d, e), f);
+impl_biassoc!(<A, B, C, D, E, F>, ((A, (((B, C), D), E)), F), (a, b, c, d, e), f);
+impl_biassoc!(<A, B, C, D, E, F>, ((A, ((B, (C, D)), E)), F), (a, b, c, d, e), f);
+impl_biassoc!(<A, B, C, D, E, F>, ((A, (B, ((C, D), E))), F), (a, b, c, d, e), f);
+impl_biassoc!(<A, B, C, D, E, F>, ((A, (B, (C, (D, E)))), F), (a, b, c, d, e), f);
+impl_biassoc!(<A, B, C, D, E, F>, (A, ((((B, C), D), E), F)), a, (b, c, d, e, f));
+impl_biassoc!(<A, B, C, D, E, F>, (A, (((B, (C, D)), E), F)), a, (b, c, d, e, f));
+impl_biassoc!(<A, B, C, D, E, F>, (A, ((B, ((C, D), E)), F)), a, (b, c, d, e, f));
+impl_biassoc!(<A, B, C, D, E, F>, (A, ((B, (C, (D, E))), F)), a, (b, c, d, e, f));
+impl_biassoc!(<A, B, C, D, E, F>, (A, (B, (((C, D), E), F))), a, (b, c, d, e, f));
+impl_biassoc!(<A, B, C, D, E, F>, (A, (B, ((C, (D, E)), F))), a, (b, c, d, e, f));
+impl_biassoc!(<A, B, C, D, E, F>, (A, (B, (C, ((D, E), F)))), a, (b, c, d, e, f));
+impl_biassoc!(<A, B, C, D, E, F>, (A, (B, (C, (D, (E, F))))), a, (b, c, d, e, f));
+
+/// Quick shortcut to [`Associator::assoc`] that doesn't require importing the
+/// trait.
+pub fn assoc<A, B>(a: A) -> B
+where A: Associator<B>
+{
+    a.assoc()
+}
+
+/// Quick shortcut to calling `.map` on an iterator with [`assoc`].
+pub fn assoc_iter<I, J, A, B>(iter: I) -> std::iter::Map<J, fn(A) -> B>
+where
+    I: IntoIterator<IntoIter = J, Item = A>,
+    J: Iterator<Item = A>,
+    A: Associator<B>,
+{
+    iter.into_iter().map(assoc)
 }
 

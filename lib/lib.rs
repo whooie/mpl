@@ -44,7 +44,7 @@
 //! interface, or both. The operations described above have also been overloaded
 //! onto Rust's `&` and `|` operators to mimic `matplotlib`'s
 //! API just for the fun of it.
-//! 
+//!
 //! When `Mpl::run` is executed, any larger data structures associated with
 //! plotting commands (mostly numerical arrays) are serialized to JSON. This
 //! data, along with the plotting script itself, are written to the OS's default
@@ -53,7 +53,7 @@
 //! [`std::process::Command`], which blocks the calling thread. Obviously, an
 //! existing installation of Python 3 and Matplotlib are required. After the
 //! script exits, both the script and the JSON file are deleted.
-//! 
+//!
 //! Although many common plotting commands are defined in [`commands`], users
 //! can define their own by simply implementing `Matplotlib`. This requires
 //! declaring whether the command should be counted as part of the script's
@@ -63,8 +63,69 @@
 //! Python code whatsoever*. Users may also wish to implement [`MatplotlibOpts`]
 //! to add optional keyword arguments.
 //!
-//! ## Example
 //! ```
+//! use mpl::{
+//!     Matplotlib,
+//!     MatplotlibOpts,
+//!     Opt,
+//!     PyValue,
+//!     AsPy,
+//!     serde_json::Value,
+//! };
+//!
+//! // example impl for a basic call to `plot`
+//!
+//! #[derive(Clone, Debug)]
+//! struct Plot {
+//!     x: Vec<f64>,
+//!     y: Vec<f64>,
+//!     opts: Vec<Opt>, // optional keyword arguments
+//! }
+//!
+//! impl Plot {
+//!     /// Create a new `Plot` with no options.
+//!     fn new<X, Y>(x: X, y: Y) -> Self
+//!     where
+//!         X: IntoIterator<Item = f64>,
+//!         Y: IntoIterator<Item = f64>,
+//!     {
+//!         Self {
+//!             x: x.into_iter().collect(),
+//!             y: y.into_iter().collect(),
+//!             opts: Vec::new(),
+//!         }
+//!     }
+//! }
+//!
+//! impl Matplotlib for Plot {
+//!     // Commands with `is_prelude == true` are run first
+//!     fn is_prelude(&self) -> bool { false }
+//!
+//!     fn data(&self) -> Option<Value> {
+//!         let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+//!         let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+//!         Some(Value::Array(vec![x.into(), y.into()]))
+//!     }
+//!
+//!     fn py_cmd(&self) -> String {
+//!         // JSON data is guaranteed to be loaded in a variable called `data`
+//!         format!("ax.plot(data[0], data[1], {})", self.opts.as_py())
+//!     }
+//! }
+//!
+//! // allow for keyword arguments to be added
+//! impl MatplotlibOpts for Plot {
+//!     fn kwarg<T>(&mut self, key: &str, val: T) -> &mut Self
+//!     where T: Into<PyValue>
+//!     {
+//!         self.opts.push((key, val).into());
+//!         self
+//!     }
+//! }
+//! ```
+//!
+//! ## Example
+//! ```ignore
 //! use std::f64::consts::TAU;
 //! use mpl::{ Mpl, Run, MatplotlibOpts, commands as c };
 //!
@@ -115,3 +176,7 @@ pub use core::{
 };
 pub mod commands;
 // pub mod rc;
+
+/// Re-exported for compatibility.
+pub use serde_json;
+
