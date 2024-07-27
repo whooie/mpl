@@ -113,7 +113,7 @@ impl AsPy for i32 {
     fn as_py(&self) -> String { self.to_string() }
 }
 
-impl AsPy for f32 {
+impl AsPy for f64 {
     fn as_py(&self) -> String { self.to_string() }
 }
 
@@ -133,7 +133,7 @@ pub enum PyValue {
     /// An `int`.
     Int(i32),
     /// A `float`.
-    Float(f32),
+    Float(f64),
     /// A `str`.
     Str(String),
     /// A `list[...]`.
@@ -154,8 +154,8 @@ impl From<i32> for PyValue {
     fn from(i: i32) -> Self { Self::Int(i) }
 }
 
-impl From<f32> for PyValue {
-    fn from(f: f32) -> Self { Self::Float(f) }
+impl From<f64> for PyValue {
+    fn from(f: f64) -> Self { Self::Float(f) }
 }
 
 impl From<String> for PyValue {
@@ -720,28 +720,6 @@ pub enum Run {
     SaveShow(PathBuf),
 }
 
-impl std::ops::BitOr<Run> for Mpl {
-    type Output = ();
-
-    fn bitor(self, mode: Run) -> Self::Output {
-        match self.run(mode) {
-            Ok(_) => (),
-            Err(err) => { panic!("error in Mpl::bitor: {err}"); },
-        }
-    }
-}
-
-impl std::ops::BitOr<Run> for &Mpl {
-    type Output = ();
-
-    fn bitor(self, mode: Run) -> Self::Output {
-        match self.run(mode) {
-            Ok(_) => (),
-            Err(err) => { panic!("error in Mpl::bitor: {err}"); },
-        }
-    }
-}
-
 impl<T: Matplotlib + 'static> From<T> for Mpl {
     fn from(item: T) -> Self {
         let mut mpl = Self::default();
@@ -769,14 +747,6 @@ impl std::ops::BitAndAssign<Mpl> for Mpl {
     }
 }
 
-impl<T> std::ops::BitAndAssign<T> for Mpl
-where T: Matplotlib + 'static
-{
-    fn bitand_assign(&mut self, rhs: T) {
-        self.then(rhs);
-    }
-}
-
 impl<T> std::ops::BitAnd<T> for Mpl
 where T: Matplotlib + 'static
 {
@@ -785,6 +755,14 @@ where T: Matplotlib + 'static
     fn bitand(mut self, rhs: T) -> Self::Output {
         self.then(rhs);
         self
+    }
+}
+
+impl<T> std::ops::BitAndAssign<T> for Mpl
+where T: Matplotlib + 'static
+{
+    fn bitand_assign(&mut self, rhs: T) {
+        self.then(rhs);
     }
 }
 
@@ -804,6 +782,28 @@ impl std::ops::BitAndAssign<Run> for Mpl {
         match self.run(mode) {
             Ok(_) => { },
             Err(err) => { panic!("error in Mpl::bitand_assign: {err}"); },
+        }
+    }
+}
+
+impl std::ops::BitOr<Run> for Mpl {
+    type Output = ();
+
+    fn bitor(self, mode: Run) -> Self::Output {
+        match self.run(mode) {
+            Ok(_) => (),
+            Err(err) => { panic!("error in Mpl::bitor: {err}"); },
+        }
+    }
+}
+
+impl std::ops::BitOr<Run> for &Mpl {
+    type Output = ();
+
+    fn bitor(self, mode: Run) -> Self::Output {
+        match self.run(mode) {
+            Ok(_) => (),
+            Err(err) => { panic!("error in Mpl::bitor: {err}"); },
         }
     }
 }
