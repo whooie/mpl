@@ -4353,13 +4353,7 @@ mod tests {
     use crate::{ Mpl, Run, MatplotlibOpts, opt, GSPos };
     use super::*;
 
-    // I'm not sure whether tests are run by docs.rs; this is an issue because
-    // obviously I can't rely on their testing environment to have
-    // Python/Matplotlib.
-    //
-    // If you want to run the tests yourself, change this to Run::Debug. You
-    // can, of course, also use Run::Show, but I wouldn't recommend it.
-    fn runner() -> Run { Run::Build }
+    fn runner() -> Run { Run::Debug }
 
     #[test]
     fn test_prelude_init() {
