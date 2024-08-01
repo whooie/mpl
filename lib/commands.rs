@@ -2510,7 +2510,7 @@ pub fn ylim(min: Option<f64>, max: Option<f64>) -> Lim {
 }
 
 /// Create a new [`Lim`] for the Z-axis.
-pub fn zlim(min: Option<f64>, max: OPtion<f64>) -> Lim {
+pub fn zlim(min: Option<f64>, max: Option<f64>) -> Lim {
     Lim::new(Axis::Z, min, max)
 }
 
