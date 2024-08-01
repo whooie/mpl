@@ -7,7 +7,7 @@ license = "AGPL-3.0-only"
 authors = [ "Will Huie <wcwhuie@gmail.com>",]
 edition = "2021"
 homepage = "https://gitlab.com/whooie/mpl"
-repository = "https://gitlab.com/whooie/mpl.git"
+repository = "https://gitlab.com/whooie/mpl"
 keywords = [ "matplotlib", "plotting", "python",]
 categories = [ "api-bindings", "graphics", "science", "visualization",]
 
