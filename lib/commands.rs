@@ -6,7 +6,7 @@
 //! function from this module for convenience, e.g.
 //!
 //! ```
-//! # use mpl::commands::*;
+//! # use matplotlib::commands::*;
 //! let p1 = Plot::new([0.0, 1.0, 2.0], [0.0, 2.0, 4.0]);
 //! let p2 =      plot([0.0, 1.0, 2.0], [0.0, 2.0, 4.0]);
 //!
@@ -4209,7 +4209,7 @@ impl MatplotlibOpts for ViewInit {
 /// several constructors in this module that require iterators over "flat"
 /// tuples.
 /// ```
-/// use mpl::commands::assoc;
+/// use matplotlib::commands::assoc;
 ///
 /// let x = vec![1,    2,     3_usize];
 /// let y = vec!['a',  'b',   'c'    ];

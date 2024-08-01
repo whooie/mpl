@@ -1,5 +1,5 @@
 [package]
-name = "mpl"
+name = "matplotlib"
 version = "0.1.0"
 description = "Quick-and-dirty plotting in Rust using Python and Matplotlib"
 readme = "README.md"
@@ -18,8 +18,5 @@ thiserror = "1.0.63"
 
 [lib]
 path = "lib/lib.rs"
-name = "mpl"
-
-[dev-dependencies]
-anyhow = "1.0.86"
+name = "matplotlib"
 

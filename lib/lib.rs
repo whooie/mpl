@@ -64,7 +64,7 @@
 //! to add optional keyword arguments.
 //!
 //! ```
-//! use mpl::{
+//! use matplotlib::{
 //!     Matplotlib,
 //!     MatplotlibOpts,
 //!     Opt,
@@ -127,7 +127,7 @@
 //! ## Example
 //! ```ignore
 //! use std::f64::consts::TAU;
-//! use mpl::{ Mpl, Run, MatplotlibOpts, commands as c };
+//! use matplotlib::{ Mpl, Run, MatplotlibOpts, commands as c };
 //!
 //! let dx: f64 = TAU / 50.0;
 //! let x: Vec<f64> = (0..50_u32).map(|k| f64::from(k) * dx).collect();
