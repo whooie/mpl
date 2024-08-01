@@ -144,6 +144,8 @@ pub enum PyValue {
     ///
     /// **Note**: This variant is *not* validated as a Python identifier.
     Var(String),
+    /// Python's `None` value.
+    None
 }
 
 impl From<bool> for PyValue {
@@ -164,6 +166,12 @@ impl From<String> for PyValue {
 
 impl From<&str> for PyValue {
     fn from(s: &str) -> Self { Self::Str(s.into()) }
+}
+
+impl<T> From<&T> for PyValue
+where T: Clone + Into<PyValue>
+{
+    fn from(x: &T) -> Self { x.clone().into() }
 }
 
 impl From<Vec<PyValue>> for PyValue {
@@ -240,6 +248,7 @@ impl AsPy for PyValue {
                 out
             },
             Self::Var(v) => v.clone(),
+            Self::None => "None".into(),
         }
     }
 }
@@ -254,6 +263,22 @@ impl<T: Into<PyValue>> From<(&str, T)> for Opt {
 
 impl<T: Into<PyValue>> From<(String, T)> for Opt {
     fn from(kv: (String, T)) -> Self { Self(kv.0, kv.1.into()) }
+}
+
+impl Opt {
+    /// Create a new `Opt`.
+    pub fn new<T>(key: &str, val: T) -> Self
+    where T: Into<PyValue>
+    {
+        Self(key.into(), val.into())
+    }
+}
+
+/// Create a new [`Opt`].
+pub fn opt<T>(key: &str, val: T) -> Opt
+where T: Into<PyValue>
+{
+    Opt::new(key, val)
 }
 
 impl AsPy for Opt {
@@ -377,6 +402,12 @@ pub struct Mpl(Vec<Rc<dyn Matplotlib + 'static>>);
 
 impl Mpl {
     /// Create a new, empty plotting script.
+    ///
+    /// The resulting plot will implicitly pull in
+    /// [`DefPrelude`][crate::commands::DefPrelude] and
+    /// [`DefInit`][crate::commands::DefInit] when [`run`][Self::run] (or a
+    /// synonym) is called if no other objects with [`Matplotlib::is_prelude`]`
+    /// == true` are added.
     pub fn new() -> Self { Self::default() }
 
     /// Create a new plotting script, initializing to a figure with a single set
@@ -386,12 +417,10 @@ impl Mpl {
     /// [`DefInit`][crate::commands::DefInit].
     ///
     /// Options are passed to the construction of the `Axes3D` object.
-    pub fn new_3d<I, O>(opts: I) -> Self
-    where
-        I: IntoIterator<Item = O>,
-        O: Into<Opt>
+    pub fn new_3d<I>(opts: I) -> Self
+    where I: IntoIterator<Item = Opt>
     {
-        let opts: Vec<Opt> = opts.into_iter().map(|item| item.into()).collect();
+        let opts: Vec<Opt> = opts.into_iter().collect();
         Self::default()
             & crate::commands::DefPrelude
             & crate::commands::prelude(
@@ -414,12 +443,10 @@ impl Mpl {
     /// [`DefInit`][crate::commands::DefInit].
     ///
     /// Options are passed to the call to `pyplot.subplots`.
-    pub fn new_grid<I, O>(nrows: usize, ncols: usize, opts: I) -> Self
-    where
-        I: IntoIterator<Item = O>,
-        O: Into<Opt>,
+    pub fn new_grid<I>(nrows: usize, ncols: usize, opts: I) -> Self
+    where I: IntoIterator<Item = Opt>
     {
-        let opts: Vec<Opt> = opts.into_iter().map(|item| item.into()).collect();
+        let opts: Vec<Opt> = opts.into_iter().collect();
         Self::default()
             & crate::commands::DefPrelude
             & crate::commands::prelude(
@@ -447,14 +474,12 @@ impl Mpl {
     ///
     /// This pulls in [`DefPrelude`][crate::commands::DefPrelude`], but not
     /// [`DefInit`][crate::commands::DefInit].
-    pub fn new_gridspec<I, O, P>(gridspec_kw: I, positions: P) -> Self
+    pub fn new_gridspec<I, P>(gridspec_kw: I, positions: P) -> Self
     where
-        I: IntoIterator<Item = O>,
-        O: Into<Opt>,
+        I: IntoIterator<Item = Opt>,
         P: IntoIterator<Item = GSPos>,
     {
-        let opts: Vec<Opt>
-            = gridspec_kw.into_iter().map(|item| item.into()).collect();
+        let opts: Vec<Opt> = gridspec_kw.into_iter().collect();
         let pos: Vec<GSPos> = positions.into_iter().collect();
         let mut code = format!("\
             fig = plt.figure()\n\
@@ -577,6 +602,8 @@ impl Mpl {
                     &format!("\nfig.savefig(\"{}\")", outfile.display()));
                 script.push_str("\nplt.show()");
             },
+            Run::Debug => { },
+            Run::Build => { },
         }
         script
     }
@@ -603,6 +630,8 @@ impl Mpl {
                     &format!("\nfig.savefig(\"{}\")", outfile.display()));
                 script.push_str("\nplt.show()");
             },
+            Run::Debug => { },
+            Run::Build => { return Ok(()); },
         }
         let mut data_file = TempFile::new(&tmp_json)?;
         data_file.write_all(json::to_string(&data)?.as_bytes())?;
@@ -718,6 +747,11 @@ pub enum Run {
     Save(PathBuf),
     /// `Save` and then `Show`.
     SaveShow(PathBuf),
+    /// Perform no plotting IO, just build the script and call Python on it (for
+    /// debugging purposes).
+    Debug,
+    /// Build the script, but don't call Python on it (for debugging purposes).
+    Build,
 }
 
 impl<T: Matplotlib + 'static> From<T> for Mpl {

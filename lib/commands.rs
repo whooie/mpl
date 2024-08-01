@@ -1000,7 +1000,7 @@ impl From<FillBetween> for Errorbar {
                 let y1 = *y1k;
                 let y2 = *y2k;
                 *y1k = 0.5 * (y1 + y2);
-                *y2k = (y1 - y2).abs();
+                *y2k = 0.5 * (y1 - y2).abs();
             });
         Self { x, y: y1, e: y2, opts }
     }
@@ -1468,7 +1468,7 @@ impl Matplotlib for Contour {
     }
 
     fn py_cmd(&self) -> String {
-        format!("ax.contour(data[0], data[1], data[2]{}{})",
+        format!("im = ax.contour(data[0], data[1], data[2]{}{})",
             if self.opts.is_empty() { "" } else { ", " },
             self.opts.as_py(),
         )
@@ -1563,7 +1563,7 @@ where
 /// z-coordinates.
 ///
 /// *Panics if the number of x-coordinates is zero*.
-pub fn new_flat<X, Y, Z>(x: X, y: Y, z: Z) -> Contourf
+pub fn contourf_flat<X, Y, Z>(x: X, y: Y, z: Z) -> Contourf
 where
     X: IntoIterator<Item = f64>,
     Y: IntoIterator<Item = f64>,
@@ -1590,7 +1590,7 @@ impl Matplotlib for Contourf {
     }
 
     fn py_cmd(&self) -> String {
-        format!("ax.contourf(data[0], data[1], data[2]{}{})",
+        format!("im = ax.contourf(data[0], data[1], data[2]{}{})",
             if self.opts.is_empty() { "" } else { ", " },
             self.opts.as_py(),
         )
@@ -1688,10 +1688,17 @@ impl Matplotlib for Imshow {
     }
 
     fn py_cmd(&self) -> String {
-        format!("ax.imshow(data{}{})",
+        format!("im = ax.imshow(data{}{})",
             if self.opts.is_empty() { "" } else { ", " },
             self.opts.as_py(),
         )
+    }
+}
+
+impl MatplotlibOpts for Imshow {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
     }
 }
 
@@ -2058,7 +2065,7 @@ impl MatplotlibOpts for AxLine {
 /// A line passing through one point with a slope.
 ///
 /// ```python
-/// ax.axline({xy}, xy2=None, m={m}, **{opts})
+/// ax.axline({xy}, xy2=None, slope={m}, **{opts})
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxLineM {
@@ -2086,7 +2093,7 @@ impl Matplotlib for AxLineM {
     fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
-        format!("ax.axline({:?}, xy2=None, m={}{}{})",
+        format!("ax.axline({:?}, xy2=None, slope={}{}{})",
             self.xy,
             self.m,
             if self.opts.is_empty() { "" } else { ", " },
@@ -2404,6 +2411,15 @@ impl Scale {
 /// Create a new [`Scale`].
 pub fn scale(axis: Axis, scale: AxisScale) -> Scale { Scale::new(axis, scale) }
 
+/// Create a new [`Scale`] for the X-axis.
+pub fn xscale(scale: AxisScale) -> Scale { Scale::new(Axis::X, scale) }
+
+/// Create a new [`Scale`] for the Y-axis.
+pub fn yscale(scale: AxisScale) -> Scale { Scale::new(Axis::Y, scale) }
+
+/// Create a new [`Scale`] for the Z-axis.
+pub fn zscale(scale: AxisScale) -> Scale { Scale::new(Axis::Z, scale) }
+
 impl Matplotlib for Scale {
     fn is_prelude(&self) -> bool { false }
 
@@ -2481,6 +2497,21 @@ impl Lim {
 /// Create a new [`Lim`].
 pub fn lim(axis: Axis, min: Option<f64>, max: Option<f64>) -> Lim {
     Lim::new(axis, min, max)
+}
+
+/// Create a new [`Lim`] for the X-axis.
+pub fn xlim(min: Option<f64>, max: Option<f64>) -> Lim {
+    Lim::new(Axis::X, min, max)
+}
+
+/// Create a new [`Lim`] for the Y-axis.
+pub fn ylim(min: Option<f64>, max: Option<f64>) -> Lim {
+    Lim::new(Axis::Y, min, max)
+}
+
+/// Create a new [`Lim`] for the Z-axis.
+pub fn zlim(min: Option<f64>, max: OPtion<f64>) -> Lim {
+    Lim::new(Axis::Z, min, max)
 }
 
 impl Matplotlib for Lim {
@@ -2839,7 +2870,7 @@ impl Matplotlib for CTicks {
     }
 
     fn py_cmd(&self) -> String {
-        format!("cbar.set_ticks(data{}{}",
+        format!("cbar.set_ticks(data{}{})",
             if self.opts.is_empty() { "" } else { ", " },
             self.opts.as_py(),
         )
@@ -3090,7 +3121,7 @@ impl Matplotlib for CTickLabels {
     }
 
     fn py_cmd(&self) -> String {
-        format!("cbar.set_ticks(data[0], label=data[1]{}{})",
+        format!("cbar.set_ticks(data[0], labels=data[1]{}{})",
             if self.opts.is_empty() { "" } else { ", " },
             self.opts.as_py(),
         )
@@ -3391,6 +3422,13 @@ impl Matplotlib for Grid {
 
     fn py_cmd(&self) -> String {
         format!("ax.grid({}, {})", self.onoff.as_py(), self.opts.as_py())
+    }
+}
+
+impl MatplotlibOpts for Grid {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
     }
 }
 
@@ -3837,6 +3875,10 @@ impl MatplotlibOpts for Quiver3 {
 /// ax.plot_surface({x}, {y}, {z}, **{opts})
 /// ```
 ///
+/// **Note**: `plot_surface` requires input to be in the form of a NumPy array.
+/// Therefore, this command requires that NumPy be imported under the usual
+/// name, `np`.
+///
 /// Prelude: **No**
 ///
 /// JSON data: `[list[list[float]], list[list[float]], list[list[float]]]`
@@ -3995,7 +4037,12 @@ impl Matplotlib for Surface {
     }
 
     fn py_cmd(&self) -> String {
-        format!("ax.plot_surface(data[0], data[1], data[2]{}{})",
+        format!("\
+            ax.plot_surface(\
+            np.array(data[0]), \
+            np.array(data[1]), \
+            np.array(data[2])\
+            {}{})",
             if self.opts.is_empty() { "" } else { ", " },
             self.opts.as_py(),
         )
@@ -4070,6 +4117,31 @@ pub fn trisurf_data<I>(data: I) -> Trisurf
 where I: IntoIterator<Item = (f64, f64, f64)>
 {
     Trisurf::new_data(data)
+}
+
+impl Matplotlib for Trisurf {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> {
+        let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
+        let z: Vec<Value> = self.z.iter().copied().map(Value::from).collect();
+        Some(Value::Array(vec![x.into(), y.into(), z.into()]))
+    }
+
+    fn py_cmd(&self) -> String {
+        format!("ax.plot_trisurf(data[0], data[1], data[2]{}{})",
+            if self.opts.is_empty() { "" } else { ", " },
+            self.opts.as_py(),
+        )
+    }
+}
+
+impl MatplotlibOpts for Trisurf {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
+    }
 }
 
 /// Set the view on a set of 3D axes.
@@ -4274,5 +4346,1172 @@ where
     A: Associator<B>,
 {
     iter.into_iter().map(assoc)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ Mpl, Run, MatplotlibOpts, opt, GSPos };
+    use super::*;
+
+    // I'm not sure whether tests are run by docs.rs; this is an issue because
+    // obviously I can't rely on their testing environment to have
+    // Python/Matplotlib.
+    //
+    // If you want to run the tests yourself, change this to Run::Debug. You
+    // can, of course, also use Run::Show, but I wouldn't recommend it.
+    fn runner() -> Run { Run::Build }
+
+    #[test]
+    fn test_prelude_init() {
+        Mpl::default()
+            & DefPrelude
+            & DefInit
+            | runner()
+    }
+
+    #[test]
+    fn test_axhline() {
+        Mpl::default()
+            & axhline(10.0).o("linestyle", "-")
+            | runner()
+    }
+
+    #[test]
+    fn test_axline() {
+        Mpl::default()
+            & axline((0.0, 0.0), (10.0, 10.0)).o("linestyle", "-")
+            | runner()
+    }
+
+    #[test]
+    fn test_axlinem() {
+        Mpl::default()
+            & axlinem((0.0, 0.0), 1.0).o("linestyle", "-")
+            | runner()
+    }
+
+    #[test]
+    fn test_axtext() {
+        Mpl::default()
+            & axtext(0.5, 0.5, "hello world").o("ha", "left").o("va", "bottom")
+            | runner()
+    }
+
+    #[test]
+    fn test_axvline() {
+        Mpl::default()
+            & axvline(10.0).o("linestyle", "-")
+            | runner()
+    }
+
+    #[test]
+    fn test_bar() {
+        Mpl::default()
+            & bar([0.0, 1.0], [0.5, 0.5]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_bar_pairs() {
+        Mpl::default()
+            & bar_pairs([(0.0, 0.5), (1.0, 0.5)]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_bar_eq() {
+        assert_eq!(
+            bar([0.0, 1.0], [0.5, 0.5]).o("color", "C0"),
+            bar_pairs([(0.0, 0.5), (1.0, 0.5)]).o("color", "C0"),
+        )
+    }
+
+    #[test]
+    fn test_barh() {
+        Mpl::default()
+            & barh([0.0, 1.0], [0.5, 0.5]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_barh_pairs() {
+        Mpl::default()
+            & barh_pairs([(0.0, 0.5), (1.0, 0.5)]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_barh_eq() {
+        assert_eq!(
+            barh([0.0, 1.0], [0.5, 0.5]).o("color", "C0"),
+            barh_pairs([(0.0, 0.5), (1.0, 0.5)]).o("color", "C0"),
+        )
+    }
+
+    #[test]
+    fn test_boxplot() {
+        Mpl::default()
+            & boxplot([[0.0, 1.0, 2.0], [2.0, 3.0, 4.0]]).o("notch", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_boxplot_flat() {
+        Mpl::default()
+            & boxplot_flat([0.0, 1.0, 2.0, 2.0, 3.0, 4.0], 3).o("notch", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_boxplot_eq() {
+        assert_eq!(
+            boxplot([[0.0, 1.0, 2.0], [2.0, 3.0, 4.0]]).o("notch", true),
+            boxplot_flat([0.0, 1.0, 2.0, 2.0, 3.0, 4.0], 3).o("notch", true),
+        )
+    }
+
+    #[test]
+    fn test_clabel() {
+        Mpl::default()
+            & imshow([[0.0, 1.0], [2.0, 3.0]])
+            & colorbar()
+            & clabel("hello world").o("fontsize", "medium")
+            | runner()
+    }
+
+    #[test]
+    fn test_clim() {
+        Mpl::default()
+            & imshow([[0.0, 1.0], [2.0, 3.0]])
+            & colorbar()
+            & clim(Some(0.0), Some(1.0))
+            | runner()
+    }
+
+    #[test]
+    fn test_colorbar() {
+        Mpl::default()
+            & imshow([[0.0, 1.0], [2.0, 3.0]])
+            & colorbar().o("location", "top")
+            | runner()
+    }
+
+    #[test]
+    fn test_contour() {
+        Mpl::default()
+            & contour([0.0, 1.0], [0.0, 1.0], [[0.0, 1.0], [2.0, 3.0]])
+                .o("cmap", "bone")
+            & colorbar()
+            | runner()
+    }
+
+    #[test]
+    fn test_contour_flat() {
+        Mpl::default()
+            & contour_flat([0.0, 1.0], [0.0, 1.0], [0.0, 1.0, 2.0, 3.0])
+                .o("cmap", "bone")
+            & colorbar()
+            | runner()
+    }
+
+    #[test]
+    fn test_contour_eq() {
+        assert_eq!(
+            contour([0.0, 1.0], [0.0, 1.0], [[0.0, 1.0], [2.0, 3.0]])
+                .o("cmap", "bone"),
+            contour_flat([0.0, 1.0], [0.0, 1.0], [0.0, 1.0, 2.0, 3.0])
+                .o("cmap", "bone"),
+        )
+    }
+
+    #[test]
+    fn test_contourf() {
+        Mpl::default()
+            & contour([0.0, 1.0], [0.0, 1.0], [[0.0, 1.0], [2.0, 3.0]])
+                .o("cmap", "bone")
+            & colorbar()
+            | runner()
+    }
+
+    #[test]
+    fn test_contourf_flat() {
+        Mpl::default()
+            & contour_flat([0.0, 1.0], [0.0, 1.0], [0.0, 1.0, 2.0, 3.0])
+                .o("cmap", "bone")
+            & colorbar()
+            | runner()
+    }
+
+    #[test]
+    fn test_contourf_eq() {
+        assert_eq!(
+            contourf([0.0, 1.0], [0.0, 1.0], [[0.0, 1.0], [2.0, 3.0]])
+                .o("cmap", "bone"),
+            contourf_flat([0.0, 1.0], [0.0, 1.0], [0.0, 1.0, 2.0, 3.0])
+                .o("cmap", "bone"),
+        )
+    }
+
+    #[test]
+    fn test_cticklabels() {
+        Mpl::default()
+            & imshow([[0.0, 1.0], [2.0, 3.0]])
+            & colorbar()
+            & cticklabels([0.0, 1.0], ["zero", "one"]).o("minor", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_cticklabels_data() {
+        Mpl::default()
+            & imshow([[0.0, 1.0], [2.0, 3.0]])
+            & colorbar()
+            & cticklabels_data([(0.0, "zero"), (1.0, "one")]).o("minor", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_cticklabels_eq() {
+        assert_eq!(
+            cticklabels([0.0, 1.0], ["zero", "one"]).o("minor", true),
+            cticklabels_data([(0.0, "zero"), (1.0, "one")]).o("minor", true),
+        )
+    }
+
+    #[test]
+    fn test_cticks() {
+        Mpl::default()
+            & imshow([[0.0, 1.0], [2.0, 3.0]])
+            & colorbar()
+            & cticks([0.0, 1.0])
+                .o("labels", PyValue::list(["zero", "one"]))
+            | runner()
+    }
+
+    #[test]
+    fn test_errorbar() {
+        Mpl::default()
+            & errorbar([0.0, 1.0], [0.0, 1.0], [0.5, 1.0]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_errorbar_data() {
+        Mpl::default()
+            & errorbar_data([(0.0, 0.0, 0.5), (1.0, 1.0, 1.0)]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_errorbar_eq() {
+        assert_eq!(
+            errorbar([0.0, 1.0], [0.0, 1.0], [0.5, 1.0]).o("color", "C0"),
+            errorbar_data([(0.0, 0.0, 0.5), (1.0, 1.0, 1.0)]).o("color", "C0"),
+        )
+    }
+
+    #[test]
+    fn test_errorbar2() {
+        Mpl::default()
+            & errorbar2([0.0, 1.0], [0.0, 1.0], [1.0, 0.5], [0.5, 1.0])
+                .o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_errorbar2_data() {
+        Mpl::default()
+            & errorbar2_data([(0.0, 0.0, 1.0, 0.5), (1.0, 1.0, 0.5, 1.0)])
+                .o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_errorbar2_eq() {
+        assert_eq!(
+            errorbar2([0.0, 1.0], [0.0, 1.0], [1.0, 0.5], [0.5, 1.0])
+                .o("color", "C0"),
+            errorbar2_data([(0.0, 0.0, 1.0, 0.5), (1.0, 1.0, 0.5, 1.0)])
+                .o("color", "C0"),
+        )
+    }
+
+    #[test]
+    fn test_figtext() {
+        Mpl::default()
+            & figtext(0.5, 0.5, "hello world").o("ha", "left").o("va", "bottom")
+            | runner()
+    }
+
+    #[test]
+    fn test_fill_between() {
+        Mpl::default()
+            & fill_between([0.0, 1.0], [-0.5, 0.0], [0.5, 2.0]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_fill_between_data() {
+        Mpl::default()
+            & fill_between_data([(0.0, -0.5, 0.5), (1.0, 0.0, 2.0)])
+                .o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_fill_between_eq() {
+        assert_eq!(
+            fill_between([0.0, 1.0], [-0.5, 0.0], [0.5, 2.0]).o("color", "C0"),
+            fill_between_data([(0.0, -0.5, 0.5), (1.0, 0.0, 2.0)])
+                .o("color", "C0"),
+        )
+    }
+
+    #[test]
+    fn test_fillbetween_from_errorbar() {
+        let ebar
+            = errorbar_data([(0.0, 0.0, 0.5), (1.0, 1.0, 1.0)]);
+        let ebar2
+            = errorbar2_data([(0.0, 0.25, 0.75, 0.25), (1.0, 1.0, 1.0, 1.0)]);
+        let fbetw
+            = fill_between_data([(0.0, -0.5, 0.5), (1.0, 0.0, 2.0)]);
+        assert_eq!(FillBetween::from(ebar),  fbetw);
+        assert_eq!(FillBetween::from(ebar2), fbetw);
+    }
+
+    #[test]
+    fn test_errorbar_from_fillbetween() {
+        let fbetw = fill_between_data([(0.0, -0.5, 0.5), (1.0, 0.0, 2.0)]);
+        let ebar = errorbar_data([(0.0, 0.0, 0.5), (1.0, 1.0, 1.0)]);
+        assert_eq!(Errorbar::from(fbetw), ebar);
+    }
+
+    #[test]
+    fn test_fill_betweenx() {
+        Mpl::default()
+            & fill_betweenx([0.0, 1.0], [-0.5, 0.0], [0.5, 2.0])
+                .o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_fill_betweenx_data() {
+        Mpl::default()
+            & fill_betweenx_data([(0.0, -0.5, 0.5), (1.0, 0.0, 2.0)])
+                .o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_fill_betweenx_eq() {
+        assert_eq!(
+            fill_betweenx([0.0, 1.0], [-0.5, 0.0], [0.5, 2.0]).o("color", "C0"),
+            fill_betweenx_data([(0.0, -0.5, 0.5), (1.0, 0.0, 2.0)])
+                .o("color", "C0"),
+        )
+    }
+
+    #[test]
+    fn test_grid() {
+        Mpl::default()
+            & grid(true).o("which", "both")
+            | runner()
+    }
+
+    #[test]
+    fn test_hist() {
+        Mpl::default()
+            & hist([0.0, 1.0, 2.0])
+                .o("bins", PyValue::list([-0.5, 0.5, 1.5, 2.5]))
+            | runner()
+    }
+
+    #[test]
+    fn test_hist2d() {
+        Mpl::default()
+            & hist2d([0.0, 1.0, 2.0], [0.0, 2.0, 4.0]).o("cmap", "bone")
+            | runner()
+    }
+
+    #[test]
+    fn test_hist2d_pairs() {
+        Mpl::default()
+            & hist2d_pairs([(0.0, 0.0), (1.0, 2.0), (2.0, 4.0)])
+                .o("cmap", "bone")
+            | runner()
+    }
+
+    #[test]
+    fn test_hist2d_eq() {
+        assert_eq!(
+            hist2d([0.0, 1.0, 2.0], [0.0, 2.0, 4.0]).o("cmap", "bone"),
+            hist2d_pairs([(0.0, 0.0), (1.0, 2.0), (2.0, 4.0)]).o("cmap", "bone"),
+        )
+    }
+
+    #[test]
+    fn test_violinplot() {
+        Mpl::default()
+            & violinplot([[0.0, 1.0], [2.0, 3.0]]).o("vert", false)
+            | runner()
+    }
+
+    #[test]
+    fn test_violinplot_flat() {
+        Mpl::default()
+            & violinplot_flat([0.0, 1.0, 2.0, 3.0], 2).o("vert", false)
+            | runner()
+    }
+
+    #[test]
+    fn test_violinplot_eq() {
+        assert_eq!(
+            violinplot([[0.0, 1.0], [2.0, 3.0]]).o("vert", false),
+            violinplot_flat([0.0, 1.0, 2.0, 3.0], 2).o("vert", false),
+        )
+    }
+
+    #[test]
+    fn test_imshow() {
+        Mpl::default()
+            & imshow([[0.0, 1.0], [2.0, 3.0]]).o("cmap", "bone")
+            | runner()
+    }
+
+    #[test]
+    fn test_imshow_flat() {
+        Mpl::default()
+            & imshow_flat([0.0, 1.0, 2.0, 3.0], 2).o("cmap", "bone")
+            | runner()
+    }
+
+    #[test]
+    fn test_imshow_eq() {
+        assert_eq!(
+            imshow([[0.0, 1.0], [2.0, 3.0]]).o("cmap", "bone"),
+            imshow_flat([0.0, 1.0, 2.0, 3.0], 2).o("cmap", "bone"),
+        )
+    }
+
+    #[test]
+    fn test_inset_axes() {
+        Mpl::default()
+            & inset_axes(0.5, 0.5, 0.25, 0.25).o("polar", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_inset_axes_pairs() {
+        Mpl::default()
+            & inset_axes_pairs((0.5, 0.5), (0.25, 0.25)).o("polar", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_label() {
+        Mpl::default()
+            & label(Axis::X, "xlabel").o("fontsize", "large")
+            & label(Axis::Y, "ylabel").o("fontsize", "large")
+            | runner()
+    }
+
+    #[test]
+    fn test_xlabel() {
+        Mpl::default()
+            & xlabel("xlabel").o("fontsize", "large")
+            | runner()
+    }
+
+    #[test]
+    fn test_ylabel() {
+        Mpl::default()
+            & ylabel("ylabel").o("fontsize", "large")
+            | runner()
+    }
+
+    #[test]
+    fn test_label_eq() {
+        assert_eq!(label(Axis::X, "xlabel"), xlabel("xlabel"));
+        assert_eq!(label(Axis::Y, "ylabel"), ylabel("ylabel"));
+    }
+
+    #[test]
+    fn test_legend() {
+        Mpl::default()
+            & plot([0.0], [0.0]).o("label", "hello world")
+            & legend().o("loc", "lower left")
+            | runner()
+    }
+
+    #[test]
+    fn test_lim() {
+        Mpl::default()
+            & lim(Axis::X, Some(-10.0), Some(10.0))
+            & lim(Axis::Y, Some(-10.0), Some(10.0))
+            | runner()
+    }
+
+    #[test]
+    fn test_xlim() {
+        Mpl::default()
+            & xlim(Some(-10.0), Some(10.0))
+            | runner()
+    }
+
+    #[test]
+    fn test_ylim() {
+        Mpl::default()
+            & ylim(Some(-10.0), Some(10.0))
+            | runner()
+    }
+
+    #[test]
+    fn test_lim_eq() {
+        assert_eq!(
+            lim(Axis::X, Some(-10.0), Some(15.0)),
+            xlim(Some(-10.0), Some(15.0)),
+        );
+        assert_eq!(
+            lim(Axis::Y, Some(-10.0), Some(15.0)),
+            ylim(Some(-10.0), Some(15.0)),
+        );
+        assert_eq!(
+            lim(Axis::Z, Some(-10.0), Some(15.0)),
+            zlim(Some(-10.0), Some(15.0)),
+        )
+    }
+
+    #[test]
+    fn test_pie() {
+        Mpl::default()
+            & pie([1.0, 2.0]).o("radius", 2)
+            | runner()
+    }
+
+    #[test]
+    fn test_plot() {
+        Mpl::default()
+            & plot([0.0, 1.0], [0.0, 1.0]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_plot_pairs() {
+        Mpl::default()
+            & plot_pairs([(0.0, 0.0), (1.0, 1.0)]).o("color", "C0")
+            | runner()
+    }
+
+    #[test]
+    fn test_plot_eq() {
+        assert_eq!(
+            plot([0.0, 1.0], [0.0, 1.0]).o("color", "C0"),
+            plot_pairs([(0.0, 0.0), (1.0, 1.0)]).o("color", "C0"),
+        )
+    }
+
+    #[test]
+    fn test_quiver() {
+        Mpl::default()
+            & quiver([0.0, 1.0], [0.0, 1.0], [0.0, 1.0], [0.0, 1.0])
+                .o("pivot", "middle")
+            | runner()
+    }
+
+    #[test]
+    fn test_quiver_data() {
+        Mpl::default()
+            & quiver_data([(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 1.0, 1.0)])
+                .o("pivot", "middle")
+            | runner()
+    }
+
+    #[test]
+    fn test_quiver_pairs() {
+        Mpl::default()
+            & quiver_pairs([(0.0, 0.0), (1.0, 1.0)], [(0.0, 0.0), (1.0, 1.0)])
+                .o("pivot", "middle")
+            | runner()
+    }
+
+    #[test]
+    fn test_quiver_eq() {
+        let norm
+            = quiver([0.0, 1.0], [0.0, 1.0], [0.0, 1.0], [0.0, 1.0])
+            .o("pivot", "middle");
+        let data
+            = quiver_data([(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 1.0, 1.0)])
+                .o("pivot", "middle");
+        let pairs
+            = quiver_pairs([(0.0, 0.0), (1.0, 1.0)], [(0.0, 0.0), (1.0, 1.0)])
+                .o("pivot", "middle");
+        assert_eq!(norm, data);
+        assert_eq!(norm, pairs);
+    }
+
+    #[test]
+    fn test_rcparam() {
+        Mpl::default()
+            & rcparam("figure.figsize", PyValue::list([2.5, 3.5]))
+            | runner()
+    }
+
+    #[test]
+    fn test_scale() {
+        Mpl::default()
+            & scale(Axis::X, AxisScale::Log)
+            & scale(Axis::Y, AxisScale::Logit)
+            | runner()
+    }
+
+    #[test]
+    fn test_xscale() {
+        Mpl::default()
+            & xscale(AxisScale::Log)
+            | runner()
+    }
+
+    #[test]
+    fn test_yscale() {
+        Mpl::default()
+            & yscale(AxisScale::Logit)
+            | runner()
+    }
+
+    #[test]
+    fn test_scale_eq() {
+        assert_eq!(scale(Axis::X, AxisScale::Log), xscale(AxisScale::Log));
+        assert_eq!(scale(Axis::Y, AxisScale::Logit), yscale(AxisScale::Logit));
+        assert_eq!(scale(Axis::Z, AxisScale::SymLog), zscale(AxisScale::SymLog));
+    }
+
+    #[test]
+    fn test_scatter() {
+        Mpl::default()
+            & scatter([0.0, 1.0], [0.0, 1.0]).o("marker", "D")
+            | runner()
+    }
+
+    #[test]
+    fn test_scatter_pairs() {
+        Mpl::default()
+            & scatter_pairs([(0.0, 0.0), (1.0, 1.0)]).o("marker", "D")
+            | runner()
+    }
+
+    #[test]
+    fn test_scatter_eq() {
+        assert_eq!(
+            scatter([0.0, 1.0], [0.0, 1.0]).o("marker", "D"),
+            scatter_pairs([(0.0, 0.0), (1.0, 1.0)]).o("marker", "D"),
+        )
+    }
+
+    #[test]
+    fn test_suptitle() {
+        Mpl::default()
+            & suptitle("hello world").o("fontsize", "xx-small")
+            | runner()
+    }
+
+    #[test]
+    fn test_supxlabel() {
+        Mpl::default()
+            & supxlabel("hello world").o("fontsize", "xx-small")
+            | runner()
+    }
+
+    #[test]
+    fn test_supylabel() {
+        Mpl::default()
+            & supylabel("hello world").o("fontsize", "xx-small")
+            | runner()
+    }
+
+    #[test]
+    fn test_make_grid() {
+        Mpl::new_grid(3, 3, [opt("sharex", true), opt("sharey", true)])
+            & focus_ax("AX[1, 1]")
+            & plot([0.0, 1.0], [0.0, 1.0]).o("color", "C1")
+            | runner()
+    }
+
+    #[test]
+    fn test_make_gridspec() {
+        //        0   1   2
+        //       |--||--||----|
+        //
+        //   -   +------++----+
+        // 0 |   | 0    || 2  |
+        //   -   |      ||    |
+        //   -   |      ||    |
+        // 1 |   |      ||    |
+        //   -   +------+|    |
+        //   -   +------+|    |
+        // 2 |   | 1    ||    |
+        //   -   +------++----+
+        //       <sharex>
+        Mpl::new_gridspec(
+                [
+                    opt("nrows", 3),
+                    opt("ncols", 3),
+                    opt("width_ratios", PyValue::list([1, 1, 2])),
+                ],
+                [
+                    GSPos::new(0..2, 0..2),
+                    GSPos::new(2..3, 0..2).sharex(Some(0)),
+                    GSPos::new(0..3, 2..3),
+                ],
+            )
+            & focus_ax("AX[1]")
+            & plot([0.0, 1.0], [0.0, 1.0]).o("color", "C1")
+            | runner()
+    }
+
+    #[test]
+    fn test_tex_off() {
+        Mpl::default()
+            & DefPrelude
+            & tex_off()
+            | runner()
+    }
+
+    #[test]
+    fn test_tex_on() {
+        Mpl::default()
+            & DefPrelude
+            & tex_on()
+            | runner()
+    }
+
+    #[test]
+    fn test_text() {
+        Mpl::default()
+            & text(0.5, 0.5, "hello world").o("fontsize", "large")
+            | runner()
+    }
+
+    #[test]
+    fn test_tick_params() {
+        Mpl::default()
+            & tick_params(Axis2::Both).o("color", "r")
+            | runner()
+    }
+
+    #[test]
+    fn test_xtick_params() {
+        Mpl::default()
+            & xtick_params().o("color", "r")
+            | runner()
+    }
+
+    #[test]
+    fn test_ytick_params() {
+        Mpl::default()
+            & xtick_params().o("color", "r")
+            | runner()
+    }
+
+    #[test]
+    fn test_tick_params_eq() {
+        assert_eq!(
+            tick_params(Axis2::X).o("color", "r"),
+            xtick_params().o("color", "r"),
+        );
+        assert_eq!(
+            tick_params(Axis2::Y).o("color", "r"),
+            ytick_params().o("color", "r"),
+        );
+    }
+
+    #[test]
+    fn test_ticklabels() {
+        Mpl::default()
+            & ticklabels(Axis::X, [0.0, 1.0], ["x:zero", "x:one"])
+                .o("fontsize", "small")
+            & ticklabels(Axis::Y, [0.0, 1.0], ["y:zero", "y:one"])
+                .o("fontsize", "small")
+            | runner()
+    }
+
+    #[test]
+    fn test_ticklabels_data() {
+        Mpl::default()
+            & ticklabels_data(Axis::X, [(0.0, "x:zero"), (1.0, "x:one")])
+                .o("fontsize", "small")
+            & ticklabels_data(Axis::Y, [(0.0, "y:zero"), (1.0, "y:one")])
+                .o("fontsize", "small")
+            | runner()
+    }
+
+    #[test]
+    fn test_xticklabels() {
+        Mpl::default()
+            & xticklabels([0.0, 1.0], ["x:zero", "x:one"])
+                .o("fontsize", "small")
+            | runner()
+    }
+
+    #[test]
+    fn test_xticklabels_data() {
+        Mpl::default()
+            & xticklabels_data([(0.0, "x:zero"), (1.0, "x:one")])
+                .o("fontsize", "small")
+            | runner()
+    }
+
+    #[test]
+    fn test_yticklabels() {
+        Mpl::default()
+            & yticklabels([0.0, 1.0], ["y:zero", "y:one"])
+                .o("fontsize", "small")
+            | runner()
+    }
+
+    #[test]
+    fn test_yticklabels_data() {
+        Mpl::default()
+            & yticklabels_data([(0.0, "y:zero"), (1.0, "y:one")])
+                .o("fontsize", "small")
+            | runner()
+    }
+
+    #[test]
+    fn test_ticklabels_eq() {
+        let normx
+            = ticklabels(Axis::X, [0.0, 1.0], ["x:zero", "x:one"]);
+        let normx_data
+            = ticklabels_data(Axis::X, [(0.0, "x:zero"), (1.0, "x:one")]);
+        let aliasx
+            = xticklabels([0.0, 1.0], ["x:zero", "x:one"]);
+        let aliasx_data
+            = xticklabels_data([(0.0, "x:zero"), (1.0, "x:one")]);
+        let normy
+            = ticklabels(Axis::Y, [0.0, 1.0], ["y:zero", "y:one"]);
+        let normy_data
+            = ticklabels_data(Axis::Y, [(0.0, "y:zero"), (1.0, "y:one")]);
+        let aliasy
+            = yticklabels([0.0, 1.0], ["y:zero", "y:one"]);
+        let aliasy_data
+            = yticklabels_data([(0.0, "y:zero"), (1.0, "y:one")]);
+        assert_eq!(normx, normx_data);
+        assert_eq!(aliasx, aliasx_data);
+        assert_eq!(normx, aliasx);
+        assert_eq!(normy, normy_data);
+        assert_eq!(aliasy, aliasy_data);
+        assert_eq!(normy, aliasy);
+    }
+
+    #[test]
+    fn test_ticks() {
+        Mpl::default()
+            & ticks(Axis::X, [0.0, 1.0]).o("minor", true)
+            & ticks(Axis::Y, [0.0, 2.0]).o("minor", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_xticks() {
+        Mpl::default()
+            & xticks([0.0, 1.0]).o("minor", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_yticks() {
+        Mpl::default()
+            & yticks([0.0, 2.0]).o("minor", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_ticks_eq() {
+        let normx = ticks(Axis::X, [0.0, 1.0]);
+        let aliasx = xticks([0.0, 1.0]);
+        let normy = ticks(Axis::Y, [0.0, 2.0]);
+        let aliasy = yticks([0.0, 2.0]);
+        assert_eq!(normx, aliasx);
+        assert_eq!(normy, aliasy);
+    }
+
+    #[test]
+    fn test_title() {
+        Mpl::default()
+            & title("hello world").o("fontsize", "large")
+            | runner()
+    }
+
+    #[test]
+    fn test_tight_layout() {
+        Mpl::new_grid(3, 3, [])
+            & tight_layout().o("h_pad", 1.0).o("w_pad", 0.5)
+            | runner()
+    }
+
+    #[test]
+    fn test_make_3d() {
+        Mpl::new_3d([opt("elev", 50.0)])
+            | runner()
+    }
+
+    #[test]
+    fn test_plot3() {
+        Mpl::new_3d([])
+            & plot3([0.0, 1.0], [0.0, 1.0], [0.0, 1.0]).o("marker", "D")
+            | runner()
+    }
+
+    #[test]
+    fn test_plot3_data() {
+        Mpl::new_3d([])
+            & plot3_data([(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]).o("marker", "D")
+            | runner()
+    }
+
+    #[test]
+    fn test_plot3_eq() {
+        assert_eq!(
+            plot3([0.0, 1.0], [0.0, 1.0], [0.0, 1.0]).o("marker", "D"),
+            plot3_data([(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]).o("marker", "D"),
+        )
+    }
+
+    #[test]
+    fn test_scatter3() {
+        Mpl::new_3d([])
+            & scatter3([0.0, 1.0], [0.0, 1.0], [0.0, 1.0]).o("marker", "D")
+            | runner()
+    }
+
+    #[test]
+    fn test_scatter3_data() {
+        Mpl::new_3d([])
+            & scatter3_data([(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]).o("marker", "D")
+            | runner()
+    }
+
+    #[test]
+    fn test_scatter3_eq() {
+        assert_eq!(
+            scatter3([0.0, 1.0], [0.0, 1.0], [0.0, 1.0]).o("marker", "D"),
+            scatter3_data([(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]).o("marker", "D"),
+        )
+    }
+
+    #[test]
+    fn test_quiver3() {
+        Mpl::new_3d([])
+            & quiver3(
+                [0.0, 1.0],
+                [0.0, 1.0],
+                [0.0, 1.0],
+                [1.0, 2.0],
+                [1.0, 2.0],
+                [1.0, 2.0],
+            ).o("pivot", "middle")
+            | runner()
+    }
+
+    #[test]
+    fn test_quiver3_data() {
+        Mpl::new_3d([])
+            & quiver3_data([
+                (0.0, 0.0, 0.0, 1.0, 1.0, 1.0),
+                (1.0, 1.0, 1.0, 2.0, 2.0, 2.0),
+            ]).o("pivot", "middle")
+            | runner()
+    }
+
+    #[test]
+    fn test_quiver3_triples() {
+        Mpl::new_3d([])
+            & quiver3_triples(
+                [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)],
+                [(1.0, 1.0, 1.0), (2.0, 2.0, 2.0)],
+            ).o("pivot", "middle")
+            | runner()
+    }
+
+    #[test]
+    fn test_quiver3_eq() {
+        let norm = quiver3(
+            [0.0, 1.0],
+            [0.0, 1.0],
+            [0.0, 1.0],
+            [1.0, 2.0],
+            [1.0, 2.0],
+            [1.0, 2.0],
+        ).o("pivot", "middle");
+        let data = quiver3_data([
+            (0.0, 0.0, 0.0, 1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0, 2.0, 2.0, 2.0),
+        ]).o("pivot", "middle");
+        let triples = quiver3_triples(
+            [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)],
+            [(1.0, 1.0, 1.0), (2.0, 2.0, 2.0)],
+        ).o("pivot", "middle");
+        assert_eq!(norm, data);
+        assert_eq!(norm, triples);
+    }
+
+    #[test]
+    fn test_surface() {
+        Mpl::new_3d([])
+            & surface(
+                [[0.0, 1.0], [0.0, 1.0]],
+                [[0.0, 0.0], [1.0, 1.0]],
+                [[0.0, 1.0], [2.0, 3.0]],
+            ).o("cmap", "rainbow")
+            | runner()
+    }
+
+    #[test]
+    fn test_surface_data() {
+        Mpl::new_3d([])
+            & surface_data(
+                [
+                    (0.0, 0.0, 0.0),
+                    (1.0, 0.0, 1.0),
+                    (0.0, 1.0, 2.0),
+                    (1.0, 1.0, 3.0),
+                ],
+                2,
+            ).o("cmap", "rainbow")
+            | runner()
+    }
+
+    #[test]
+    fn test_surface_flat() {
+        Mpl::new_3d([])
+            & surface_flat(
+                [0.0, 1.0, 0.0, 1.0],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 1.0, 2.0, 3.0],
+                2,
+            ).o("cmap", "rainbow")
+            | runner()
+    }
+
+    #[test]
+    fn test_surface_eq() {
+        let norm = surface(
+            [[0.0, 1.0], [0.0, 1.0]],
+            [[0.0, 0.0], [1.0, 1.0]],
+            [[0.0, 1.0], [2.0, 3.0]],
+        ).o("cmap", "rainbow");
+        let data = surface_data(
+            [
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 1.0),
+                (0.0, 1.0, 2.0),
+                (1.0, 1.0, 3.0),
+            ],
+            2,
+        ).o("cmap", "rainbow");
+        let flat = surface_flat(
+            [0.0, 1.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [0.0, 1.0, 2.0, 3.0],
+            2,
+        ).o("cmap", "rainbow");
+        assert_eq!(norm, data);
+        assert_eq!(norm, flat);
+    }
+
+    #[test]
+    fn test_trisurf() {
+        Mpl::new_3d([])
+            & trisurf(
+                [0.0, 1.0, 0.0, 1.0],
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 1.0, 2.0, 3.0],
+            ).o("cmap", "rainbow")
+            | runner()
+    }
+
+    #[test]
+    fn test_trisurf_data() {
+        Mpl::new_3d([])
+            & trisurf_data([
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 1.0),
+                (0.0, 1.0, 2.0),
+                (1.0, 1.0, 3.0),
+            ]).o("cmap", "rainbow")
+            | runner()
+    }
+
+    #[test]
+    fn test_trisurf_eq() {
+        let norm = trisurf(
+            [0.0, 1.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [0.0, 1.0, 2.0, 3.0],
+        ).o("cmap", "rainbow");
+        let data = trisurf_data([
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 1.0),
+            (0.0, 1.0, 2.0),
+            (1.0, 1.0, 3.0),
+        ]).o("cmap", "rainbow");
+        assert_eq!(norm, data);
+    }
+
+    #[test]
+    fn test_view_init() {
+        Mpl::new_3d([])
+            & view_init(90.0, 0.0).o("roll", 45.0)
+            | runner()
+    }
+
+    #[test]
+    fn test_zlabel() {
+        Mpl::new_3d([])
+            & zlabel("zlabel")
+            | runner()
+    }
+
+    #[test]
+    fn test_zlim() {
+        Mpl::new_3d([])
+            & zlim(Some(-10.0), Some(15.0))
+            | runner()
+    }
+
+    #[test]
+    fn test_zscale() {
+        Mpl::new_3d([])
+            & zscale(AxisScale::Log)
+            | runner()
+    }
+
+    #[test]
+    fn test_zticklabels() {
+        Mpl::new_3d([])
+            & zticklabels([0.0, 1.0], ["zero", "one"]).o("minor", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_zticklabels_data() {
+        Mpl::new_3d([])
+            & zticklabels_data([(0.0, "zero"), (1.0, "one")]).o("minor", true)
+            | runner()
+    }
+
+    #[test]
+    fn test_zticklabels_eq() {
+        assert_eq!(
+            zticklabels([0.0, 1.0], ["zero", "one"]).o("minor", true),
+            zticklabels_data([(0.0, "zero"), (1.0, "one")]).o("minor", true),
+        )
+    }
+
+    #[test]
+    fn test_zticks() {
+        Mpl::new_3d([])
+            & zticks([0.0, 1.0]).o("minor", true)
+            | runner()
+    }
 }
 
