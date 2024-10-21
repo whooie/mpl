@@ -94,9 +94,9 @@ pub trait Matplotlib: std::fmt::Debug {
     /// following variables:
     ///
     /// - `data`: If [`self.data`][Matplotlib::data] returns `Some`, that data
-    /// will be available under this name.
+    ///   will be available under this name.
     /// - `fig` and `ax`: The current figure of type `matplotlib.pyplot.Figure`
-    /// and the current set of axes, of type `matplotlib.axes.Axes`.
+    ///   and the current set of axes, of type `matplotlib.axes.Axes`.
     fn py_cmd(&self) -> String;
 }
 
@@ -398,7 +398,11 @@ impl Drop for TempFile {
 ///     | Run::Show
 /// ```
 #[derive(Clone, Debug, Default)]
-pub struct Mpl(Vec<Rc<dyn Matplotlib + 'static>>);
+pub struct Mpl {
+    prelude: Vec<Rc<dyn Matplotlib + 'static>>,
+    commands: Vec<Rc<dyn Matplotlib + 'static>>,
+}
+// pub struct Mpl(Vec<Rc<dyn Matplotlib + 'static>>);
 
 impl Mpl {
     /// Create a new, empty plotting script.
@@ -510,32 +514,32 @@ impl Mpl {
             & crate::commands::prelude(&code)
     }
 
-    fn sort_preludes(&mut self) {
-        self.0.sort_by_key(|item| !item.is_prelude())
-    }
-
     /// Add a new command to `self`.
     pub fn then<M: Matplotlib + 'static>(&mut self, item: M) -> &mut Self {
-        let sort = item.is_prelude();
-        self.0.push(Rc::new(item));
-        if sort { self.sort_preludes(); }
+        if item.is_prelude() {
+            self.prelude.push(Rc::new(item));
+        } else {
+            self.commands.push(Rc::new(item));
+        }
         self
     }
 
     /// Combine `self` with `other`, moving all commands marked with
-    /// [`is_prelude`][Matplotlib::is_prelude]` == true` to the top but
-    /// maintaining command order otherwise.
+    /// [`is_prelude`][Matplotlib::is_prelude]` == true` to the top (with those
+    /// from `self` before those from `other`) but maintaining command order
+    /// otherwise.
     pub fn concat(&mut self, other: &Self) -> &mut Self {
-        let sort = other.0.iter().any(|item| item.is_prelude());
-        self.0.append(&mut other.0.clone());
-        if sort { self.sort_preludes(); }
+        self.prelude.append(&mut other.prelude.clone());
+        self.commands.append(&mut other.commands.clone());
         self
     }
 
     fn collect_data(&self) -> (json::Value, Vec<bool>) {
-        let mut has_data = vec![false; self.0.len()];
-        let data: Vec<json::Value>
-            = self.0.iter()
+        let mut has_data =
+            vec![false; self.prelude.len() + self.commands.len()];
+        let data: Vec<json::Value> =
+            self.prelude.iter()
+            .chain(self.commands.iter())
             .zip(has_data.iter_mut())
             .flat_map(|(item, item_has_data)| {
                 let maybe_data = item.data();
@@ -550,13 +554,14 @@ impl Mpl {
     where P: AsRef<Path>
     {
         let mut script = String::new();
-        if !self.0.iter().any(|item| item.is_prelude()) {
+        if self.prelude.is_empty() {
             script.push_str(PRELUDE);
             script.push_str(INIT);
-        }
-        for item in self.0.iter().take_while(|item| item.is_prelude()) {
-            script.push_str(&item.py_cmd());
-            script.push('\n');
+        } else {
+            for item in self.prelude.iter() {
+                script.push_str(&item.py_cmd());
+                script.push('\n');
+            }
         }
         script.push_str(
             &format!("\
@@ -567,10 +572,10 @@ impl Mpl {
             )
         );
         let mut data_count: usize = 0;
-        let iter
-            = self.0.iter()
-            .zip(has_data)
-            .skip_while(|(item, _)| item.is_prelude());
+        let iter =
+            self.prelude.iter()
+            .chain(self.commands.iter())
+            .zip(has_data);
         for (item, has_data) in iter {
             if *has_data {
                 script.push_str(
@@ -766,18 +771,16 @@ impl std::ops::BitAnd<Mpl> for Mpl {
     type Output = Mpl;
 
     fn bitand(mut self, mut rhs: Mpl) -> Self::Output {
-        let sort = rhs.0.iter().any(|item| item.is_prelude());
-        self.0.append(&mut rhs.0);
-        if sort { self.sort_preludes(); }
+        self.prelude.append(&mut rhs.prelude);
+        self.commands.append(&mut rhs.commands);
         self
     }
 }
 
 impl std::ops::BitAndAssign<Mpl> for Mpl {
     fn bitand_assign(&mut self, mut rhs: Mpl) {
-        let sort = rhs.0.iter().any(|item| item.is_prelude());
-        self.0.append(&mut rhs.0);
-        if sort { self.sort_preludes(); }
+        self.prelude.append(&mut rhs.prelude);
+        self.commands.append(&mut rhs.commands);
     }
 }
 

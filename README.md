@@ -1,4 +1,4 @@
-# Mpl
+# Matplotlib
 
 Quick-and-dirty plotting in Rust using Python and [Matplotlib][matplotlib],
 strongly inspired by the Haskell package [`matplotlib`][matplotlib-hs].
@@ -63,7 +63,7 @@ the script. *This library does not validate any Python code whatsoever*. Users
 may also wish to implement `MatplotlibOpts` to add optional keyword arguments.
 
 ```rust
-use mpl::{
+use matplotlib::{
     Matplotlib,
     MatplotlibOpts,
     Opt,
@@ -126,7 +126,7 @@ impl MatplotlibOpts for Plot {
 ## Example
 ```rust
 use std::f64::consts::TAU;
-use mpl::{ Mpl, Run, MatplotlibOpts, commands as c };
+use matplotlib::{ Mpl, Run, MatplotlibOpts, commands as c };
 
 let dx: f64 = TAU / 50.0;
 let x: Vec<f64> = (0..50_u32).map(|k| f64::from(k) * dx).collect();

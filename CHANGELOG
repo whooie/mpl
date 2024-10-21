@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.1.1] - 2024-10-21
+
+### Changed
+
+- Replaced incorrect references in README code examples to `mpl` as a crate
+  name; the name is actually `matplotlib`.
+- Instead of dumbly recording all prelude and non-prelude commands in the same
+  vector in `Mpl`, separate them out so that the command list doesn't have to be
+  re-sorted all the time.
+
 ## [0.1.0] - 2024-08-01
 
 ### Added
