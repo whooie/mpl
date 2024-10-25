@@ -427,15 +427,18 @@ impl Mpl {
         let opts: Vec<Opt> = opts.into_iter().collect();
         Self::default()
             & crate::commands::DefPrelude
-            & crate::commands::prelude(
-                &format!("\
-                    fig = plt.figure()\n\
-                    ax = axes3d.Axes3D(fig, auto_add_to_figure=False{}{})\n\
-                    fig.add_axes(ax)\n",
-                    if opts.is_empty() { "" } else { ", " },
-                    opts.as_py(),
-                )
-            )
+            & crate::commands::Init3D { opts: opts.into_iter().collect() }
+    }
+
+    /// Like [`new_3d`][Self::new_3d], but call a closure on the new `Mpl`
+    /// between prelude and figure/axes initialization.
+    pub fn new_3d_with<I, F>(opts: I, f: F) -> Self
+    where
+        I: IntoIterator<Item = Opt>,
+        F: FnOnce(Mpl) -> Mpl,
+    {
+        f(Self::default() & crate::commands::DefPrelude)
+            & crate::commands::Init3D { opts: opts.into_iter().collect() }
     }
 
     /// Create a new plotting script, initializing to a figure with a regular
@@ -453,19 +456,27 @@ impl Mpl {
         let opts: Vec<Opt> = opts.into_iter().collect();
         Self::default()
             & crate::commands::DefPrelude
-            & crate::commands::prelude(
-                &format!("\
-                    fig, AX = plt.subplots(nrows={}, ncols={}{}{})\n\
-                    AX = AX.reshape(({}, {}))\n\
-                    ax = AX[0, 0]\n",
-                    nrows,
-                    ncols,
-                    if opts.is_empty() { "" } else { ", " },
-                    opts.as_py(),
-                    nrows,
-                    ncols,
-                )
-            )
+            & crate::commands::InitGrid {
+                nrows,
+                ncols,
+                opts: opts.into_iter().collect(),
+            }
+    }
+
+    /// Like [`new_grid`][Self::new_grid], but call a closure on the new `Mpl`
+    /// between prelude and figure/axes initialization.
+    pub fn new_grid_with<I, F>(nrows: usize, ncols: usize, opts: I, f: F)
+        -> Self
+    where
+        I: IntoIterator<Item = Opt>,
+        F: FnOnce(Mpl) -> Mpl,
+    {
+        f(Self::default() & crate::commands::DefPrelude)
+            & crate::commands::InitGrid {
+                nrows,
+                ncols,
+                opts: opts.into_iter().collect(),
+            }
     }
 
     /// Create a new plotting script, initializing a figure with Matplotlib's
@@ -483,35 +494,22 @@ impl Mpl {
         I: IntoIterator<Item = Opt>,
         P: IntoIterator<Item = GSPos>,
     {
-        let opts: Vec<Opt> = gridspec_kw.into_iter().collect();
-        let pos: Vec<GSPos> = positions.into_iter().collect();
-        let mut code = format!("\
-            fig = plt.figure()\n\
-            gs = fig.add_gridspec({})\n\
-            AX = np.array([\n",
-            opts.as_py(),
-        );
-        for GSPos { i, j, sharex: _, sharey: _ } in pos.iter() {
-            code.push_str(
-                &format!("    fig.add_subplot(gs[{}:{}, {}:{}]),\n",
-                    i.start, i.end, j.start, j.end,
-                )
-            );
-        }
-        code.push_str("])\n");
-        let iter = pos.iter().enumerate();
-        for (k, GSPos { i: _, j: _, sharex, sharey }) in iter {
-            if let Some(x) = sharex {
-                code.push_str(&format!("AX[{}].sharex(AX[{}])\n", k, x));
-            }
-            if let Some(y) = sharey {
-                code.push_str(&format!("AX[{}].sharey(AX[{}])\n", k, y));
-            }
-        }
-        code.push_str("ax = AX[0]\n");
         Self::default()
             & crate::commands::DefPrelude
-            & crate::commands::prelude(&code)
+            & crate::commands::init_gridspec(gridspec_kw, positions)
+    }
+
+    /// Like [`new_gridspec`][Self::new_gridspec], but call a closure on the new
+    /// `Mpl` between prelude and figure/axes initialization.
+    pub fn new_gridspec_with<I, P, F>(gridspec_kw: I, positions: P, f: F)
+        -> Self
+    where
+        I: IntoIterator<Item = Opt>,
+        P: IntoIterator<Item = GSPos>,
+        F: FnOnce(Mpl) -> Mpl,
+    {
+        f(Self::default() & crate::commands::DefPrelude)
+            & crate::commands::init_gridspec(gridspec_kw, positions)
     }
 
     /// Add a new command to `self`.
@@ -553,24 +551,18 @@ impl Mpl {
     fn build_script<P>(&self, datafile: P, has_data: &[bool]) -> String
     where P: AsRef<Path>
     {
-        let mut script = String::new();
-        if self.prelude.is_empty() {
-            script.push_str(PRELUDE);
-            script.push_str(INIT);
-        } else {
-            for item in self.prelude.iter() {
-                script.push_str(&item.py_cmd());
-                script.push('\n');
-            }
-        }
-        script.push_str(
-            &format!("\
+        let mut script =
+            format!("\
+                import json\n\
                 datafile = open(\"{}\", \"r\")\n\
                 alldata = json.loads(datafile.read())\n\
                 datafile.close()\n",
                 datafile.as_ref().display(),
-            )
-        );
+            );
+        if self.prelude.is_empty() {
+            script.push_str(PRELUDE);
+            script.push_str(INIT);
+        }
         let mut data_count: usize = 0;
         let iter =
             self.prelude.iter()
@@ -644,17 +636,17 @@ impl Mpl {
         let mut script_file = TempFile::new(&tmp_py)?;
         script_file.write_all(script.as_bytes())?;
         script_file.flush()?;
-        let res
-            = process::Command::new("python3")
+        let res =
+            process::Command::new("python3")
             .arg(format!("{}", tmp_py.display()))
             .output()?;
         if res.status.success() {
             Ok(())
         } else {
-            let stdout: String
-                = res.stdout.into_iter().map(char::from).collect();
-            let stderr: String
-                = res.stderr.into_iter().map(char::from).collect();
+            let stdout: String =
+                res.stdout.into_iter().map(char::from).collect();
+            let stderr: String =
+                res.stderr.into_iter().map(char::from).collect();
             Err(MplError::PyError(stdout, stderr))
         }
     }

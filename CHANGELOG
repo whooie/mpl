@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.2.0] - 2024-10-25
+
+### Added
+
+- New object interface to the initialization procedures previously only
+  accessible as constructor methods of `Mpl`. Namely, the methods `new_3d`,
+  `new_grid`, and `new_gridspec` now have associated "command types" `Init3D`,
+  `InitGrid`, and `InitGridSpec`. This is to solve the problem of being able to
+  combine styling (e.g. `rcParam` settings) with more complicated figures. These
+  constructor methods now use the new types internally, and additional
+  constructors `new_3d_with`, `new_grid_with`, and `new_gridspec_with` have also
+  been added as another way to solve this problem.
+
+### Changed
+
+- Dumb code style changes regarding line breaks around assignment operators.
+
 ## [0.1.1] - 2024-10-21
 
 ### Changed

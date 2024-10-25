@@ -23,6 +23,7 @@ use crate::core::{
     Matplotlib,
     MatplotlibOpts,
     Opt,
+    GSPos,
     PyValue,
     AsPy,
     PRELUDE,
@@ -119,6 +120,217 @@ impl Matplotlib for DefInit {
     fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String { INIT.into() }
+}
+
+/// Initialize to a figure with a single set of 3D axes.
+///
+/// The type of the axes object is `mpl_toolkits.mplot3d.axes3d.Axes3D`.
+///
+/// Requires [`DefPrelude`].
+///
+/// ```python
+/// fig = plt.figure()
+/// ax = axes3d.Axes3D(fig, auto_add_to_figure=False, **{opts})
+/// fig.add_axes(ax)
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Init3D {
+    /// Optional keyword arguments.
+    pub opts: Vec<Opt>,
+}
+
+impl Init3D {
+    /// Create a new `Init3D` with no options.
+    pub fn new() -> Self { Self { opts: Vec::new() } }
+}
+
+impl Matplotlib for Init3D {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> { None }
+
+    fn py_cmd(&self) -> String {
+        format!("\
+            fig = plt.figure()\n\
+            ax = axes3d.Axes3D(fig, auto_add_to_figure=False{}{})\n\
+            fig.add_axes(ax)",
+            if self.opts.is_empty() { "" } else { ", " },
+            self.opts.as_py(),
+        )
+    }
+}
+
+impl MatplotlibOpts for Init3D {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
+    }
+}
+
+/// Initialize to a figure with a regular grid of plots.
+///
+/// All `Axes` objects will be stored in a 2D Numpy array under the local
+/// variable `AX`, and the script will be initially focused on the upper-left
+/// corner of the array, i.e. `ax = AX[0, 0]`.
+///
+/// Requires [`DefPrelude`].
+///
+/// ```python
+/// fig, AX = plt.subplots(nrows={nrows}, ncols={ncols}, **{opts})
+/// AX = AX.reshape(({nrows}, {ncols}))
+/// ax = AX[0, 0]
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
+#[derive(Clone, Debug, PartialEq)]
+pub struct InitGrid {
+    /// Number of rows.
+    pub nrows: usize,
+    /// Number of columns.
+    pub ncols: usize,
+    /// Optional keyword arguments.
+    pub opts: Vec<Opt>,
+}
+
+impl InitGrid {
+    /// Create a new `InitGrid` with no options.
+    pub fn new(nrows: usize, ncols: usize) -> Self {
+        Self { nrows, ncols, opts: Vec::new() }
+    }
+}
+
+/// Create a new [`InitGrid`] with no options.
+pub fn init_grid(nrows: usize, ncols: usize) -> InitGrid {
+    InitGrid::new(nrows, ncols)
+}
+
+impl Matplotlib for InitGrid {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> { None }
+
+    fn py_cmd(&self) -> String {
+        format!("\
+            fig, AX = plt.subplots(nrows={}, ncols={}{}{})\n\
+            AX = AX.reshape(({}, {}))\n\
+            ax = AX[0, 0]",
+            self.nrows,
+            self.ncols,
+            if self.opts.is_empty() { "" } else { ", " },
+            self.opts.as_py(),
+            self.nrows,
+            self.ncols,
+        )
+    }
+}
+
+impl MatplotlibOpts for InitGrid {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.opts.push((key, val).into());
+        self
+    }
+}
+
+/// Initialize a figure with Matplotlib's `gridspec`.
+///
+/// Keyword arguments are passed to `plt.Figure.add_gridspec`, and each
+/// subplot's position in the gridspec is specified using a [`GSPos`]. All
+/// `Axes` objects will be stored in a 1D Numpy array under the local variable
+/// `AX`, and the script will be initially focused to the subplot corresponding
+/// to the first `GSPos` encountered, i.e. `ax = AX[0]`.
+///
+/// Requires [`DefPrelude`].
+///
+/// ```python
+/// fig = plt.figure()
+/// gs = fig.add_gridspec(**{opts})
+/// AX = np.array([
+///     # sub-plots generated from {positions}...
+/// ])
+/// # share axes between sub-plots...
+/// ax = AX[0]
+/// ```
+///
+/// Prelude: **No**
+///
+/// JSON data: **None**
+#[derive(Clone, Debug, PartialEq)]
+pub struct InitGridSpec {
+    /// Keyword arguments.
+    pub gridspec_kw: Vec<Opt>,
+    /// Sub-plot positions and axis sharing.
+    pub positions: Vec<GSPos>,
+}
+
+impl InitGridSpec {
+    /// Create a new `InitGridSpec`.
+    pub fn new<I, P>(gridspec_kw: I, positions: P) -> Self
+    where
+        I: IntoIterator<Item = Opt>,
+        P: IntoIterator<Item = GSPos>,
+    {
+        Self {
+            gridspec_kw: gridspec_kw.into_iter().collect(),
+            positions: positions.into_iter().collect(),
+        }
+    }
+}
+
+/// Create a new [`InitGridSpec`].
+pub fn init_gridspec<I, P>(gridspec_kw: I, positions: P) -> InitGridSpec
+where
+    I: IntoIterator<Item = Opt>,
+    P: IntoIterator<Item = GSPos>,
+{
+    InitGridSpec::new(gridspec_kw, positions)
+}
+
+impl Matplotlib for InitGridSpec {
+    fn is_prelude(&self) -> bool { false }
+
+    fn data(&self) -> Option<Value> { None }
+
+    fn py_cmd(&self) -> String {
+        let mut code =
+            format!("\
+                fig = plt.figure()\n\
+                gs = fig.add_gridspec({})\n\
+                AX = np.array([\n",
+                self.gridspec_kw.as_py(),
+            );
+        for GSPos { i, j, sharex: _, sharey: _ } in self.positions.iter() {
+            code.push_str(
+                &format!("    fig.add_subplot(gs[{}:{}, {}:{}]),\n",
+                    i.start, i.end, j.start, j.end,
+                )
+            );
+        }
+        code.push_str("])\n");
+        let iter = self.positions.iter().enumerate();
+        for (k, GSPos { i: _, j: _, sharex, sharey }) in iter {
+            if let Some(x) = sharex {
+                code.push_str(&format!("AX[{}].sharex(AX[{}])\n", k, x));
+            }
+            if let Some(y) = sharey {
+                code.push_str(&format!("AX[{}].sharey(AX[{}])\n", k, y));
+            }
+        }
+        code.push_str("ax = AX[0]\n");
+        code
+    }
+}
+
+impl MatplotlibOpts for InitGridSpec {
+    fn kwarg<T: Into<PyValue>>(&mut self, key: &str, val: T) -> &mut Self {
+        self.gridspec_kw.push((key, val).into());
+        self
+    }
 }
 
 /// Set the value of an RC parameter.
@@ -432,8 +644,8 @@ impl Matplotlib for Hist {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let data: Vec<Value>
-            = self.data.iter().copied().map(Value::from).collect();
+        let data: Vec<Value> =
+            self.data.iter().copied().map(Value::from).collect();
         Some(Value::Array(data))
     }
 
@@ -796,10 +1008,10 @@ impl Matplotlib for Bar {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let x: Vec<Value>
-            = self.x.iter().copied().map(Value::from).collect();
-        let y: Vec<Value>
-            = self.y.iter().copied().map(Value::from).collect();
+        let x: Vec<Value> =
+            self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> =
+            self.y.iter().copied().map(Value::from).collect();
         Some(Value::Array(vec![x.into(), y.into()]))
     }
 
@@ -880,10 +1092,10 @@ impl Matplotlib for BarH {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let y: Vec<Value>
-            = self.y.iter().copied().map(Value::from).collect();
-        let w: Vec<Value>
-            = self.w.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> =
+            self.y.iter().copied().map(Value::from).collect();
+        let w: Vec<Value> =
+            self.w.iter().copied().map(Value::from).collect();
         Some(Value::Array(vec![y.into(), w.into()]))
     }
 
@@ -1051,8 +1263,8 @@ impl Errorbar2 {
     pub fn new_data<I>(data: I) -> Self
     where I: IntoIterator<Item = (f64, f64, f64, f64)>
     {
-        let (((x, y), e_neg), e_pos)
-            = data.into_iter().map(assoc).unzip();
+        let (((x, y), e_neg), e_pos) =
+            data.into_iter().map(assoc).unzip();
         Self { x, y, e_neg, e_pos, opts: Vec::new() }
     }
 }
@@ -1081,10 +1293,10 @@ impl Matplotlib for Errorbar2 {
     fn data(&self) -> Option<Value> {
         let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
         let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
-        let e_neg: Vec<Value>
-            = self.e_neg.iter().copied().map(Value::from).collect();
-        let e_pos: Vec<Value>
-            = self.e_pos.iter().copied().map(Value::from).collect();
+        let e_neg: Vec<Value> =
+            self.e_neg.iter().copied().map(Value::from).collect();
+        let e_pos: Vec<Value> =
+            self.e_pos.iter().copied().map(Value::from).collect();
         Some(Value::Array(
             vec![x.into(), y.into(), e_neg.into(), e_pos.into()]))
     }
@@ -1182,8 +1394,8 @@ impl Boxplot {
         I: IntoIterator<Item = J>,
         J: IntoIterator<Item = f64>,
     {
-        let data: Vec<Vec<f64>>
-            = data.into_iter()
+        let data: Vec<Vec<f64>> =
+            data.into_iter()
             .map(|row| row.into_iter().collect())
             .collect();
         Self { data, opts: Vec::new() }
@@ -1200,8 +1412,8 @@ impl Boxplot {
     where I: IntoIterator<Item = f64>
     {
         if size == 0 { panic!("data set size cannot be zero"); }
-        let data: Vec<Vec<f64>>
-            = Chunks::new(data.into_iter(), size)
+        let data: Vec<Vec<f64>> =
+            Chunks::new(data.into_iter(), size)
             .collect();
         Self { data, opts: Vec::new() }
     }
@@ -1233,11 +1445,11 @@ impl Matplotlib for Boxplot {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let data: Vec<Value>
-            = self.data.iter()
+        let data: Vec<Value> =
+            self.data.iter()
             .map(|row| {
-                let row: Vec<Value>
-                    = row.iter().copied().map(Value::from).collect();
+                let row: Vec<Value> =
+                    row.iter().copied().map(Value::from).collect();
                 Value::Array(row)
             })
             .collect();
@@ -1283,8 +1495,8 @@ impl Violinplot {
         I: IntoIterator<Item = J>,
         J: IntoIterator<Item = f64>,
     {
-        let data: Vec<Vec<f64>>
-            = data.into_iter()
+        let data: Vec<Vec<f64>> =
+            data.into_iter()
             .map(|row| row.into_iter().collect())
             .collect();
         Self { data, opts: Vec::new() }
@@ -1301,8 +1513,8 @@ impl Violinplot {
     where I: IntoIterator<Item = f64>
     {
         if size == 0 { panic!("data set size cannot be zero"); }
-        let data: Vec<Vec<f64>>
-            = Chunks::new(data.into_iter(), size)
+        let data: Vec<Vec<f64>> =
+            Chunks::new(data.into_iter(), size)
             .collect();
         Self { data, opts: Vec::new() }
     }
@@ -1334,11 +1546,11 @@ impl Matplotlib for Violinplot {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let data: Vec<Value>
-            = self.data.iter()
+        let data: Vec<Value> =
+            self.data.iter()
             .map(|row| {
-                let row: Vec<Value>
-                    = row.iter().copied().map(Value::from).collect();
+                let row: Vec<Value> =
+                    row.iter().copied().map(Value::from).collect();
                 Value::Array(row)
             })
             .collect();
@@ -1399,8 +1611,8 @@ impl Contour {
     {
         let x: Vec<f64> = x.into_iter().collect();
         let y: Vec<f64> = y.into_iter().collect();
-        let z: Vec<Vec<f64>>
-            = z.into_iter()
+        let z: Vec<Vec<f64>> =
+            z.into_iter()
             .map(|row| row.into_iter().collect())
             .collect();
         Self { x, y, z, opts: Vec::new() }
@@ -1419,8 +1631,8 @@ impl Contour {
         let x: Vec<f64> = x.into_iter().collect();
         if x.is_empty() { panic!("x-coordinate array cannot be empty"); }
         let y: Vec<f64> = y.into_iter().collect();
-        let z: Vec<Vec<f64>>
-            = Chunks::new(z.into_iter(), x.len())
+        let z: Vec<Vec<f64>> =
+            Chunks::new(z.into_iter(), x.len())
             .collect();
         Self { x, y, z, opts: Vec::new() }
     }
@@ -1456,11 +1668,11 @@ impl Matplotlib for Contour {
     fn data(&self) -> Option<Value> {
         let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
         let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
-        let z: Vec<Value>
-            = self.z.iter()
+        let z: Vec<Value> =
+            self.z.iter()
             .map(|row| {
-                let row: Vec<Value>
-                    = row.iter().copied().map(Value::from).collect();
+                let row: Vec<Value> =
+                    row.iter().copied().map(Value::from).collect();
                 Value::Array(row)
             })
             .collect();
@@ -1521,8 +1733,8 @@ impl Contourf {
     {
         let x: Vec<f64> = x.into_iter().collect();
         let y: Vec<f64> = y.into_iter().collect();
-        let z: Vec<Vec<f64>>
-            = z.into_iter()
+        let z: Vec<Vec<f64>> =
+            z.into_iter()
             .map(|row| row.into_iter().collect())
             .collect();
         Self { x, y, z, opts: Vec::new() }
@@ -1541,8 +1753,8 @@ impl Contourf {
         let x: Vec<f64> = x.into_iter().collect();
         if x.is_empty() { panic!("x-coordinate array cannot be empty"); }
         let y: Vec<f64> = y.into_iter().collect();
-        let z: Vec<Vec<f64>>
-            = Chunks::new(z.into_iter(), x.len())
+        let z: Vec<Vec<f64>> =
+            Chunks::new(z.into_iter(), x.len())
             .collect();
         Self { x, y, z, opts: Vec::new() }
     }
@@ -1578,11 +1790,11 @@ impl Matplotlib for Contourf {
     fn data(&self) -> Option<Value> {
         let x: Vec<Value> = self.x.iter().copied().map(Value::from).collect();
         let y: Vec<Value> = self.y.iter().copied().map(Value::from).collect();
-        let z: Vec<Value>
-            = self.z.iter()
+        let z: Vec<Value> =
+            self.z.iter()
             .map(|row| {
-                let row: Vec<Value>
-                    = row.iter().copied().map(Value::from).collect();
+                let row: Vec<Value> =
+                    row.iter().copied().map(Value::from).collect();
                 Value::Array(row)
             })
             .collect();
@@ -1631,8 +1843,8 @@ impl Imshow {
         I: IntoIterator<Item = J>,
         J: IntoIterator<Item = f64>,
     {
-        let data: Vec<Vec<f64>>
-            = data.into_iter()
+        let data: Vec<Vec<f64>> =
+            data.into_iter()
             .map(|row| row.into_iter().collect())
             .collect();
         Self { data, opts: Vec::new() }
@@ -1646,8 +1858,8 @@ impl Imshow {
     where I: IntoIterator<Item = f64>
     {
         if rowlen == 0 { panic!("row length cannot be zero"); }
-        let data: Vec<Vec<f64>>
-            = Chunks::new(data.into_iter(), rowlen)
+        let data: Vec<Vec<f64>> =
+            Chunks::new(data.into_iter(), rowlen)
             .collect();
         Self { data, opts: Vec::new() }
     }
@@ -1676,11 +1888,11 @@ impl Matplotlib for Imshow {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let data: Vec<Value>
-            = self.data.iter()
+        let data: Vec<Value> =
+            self.data.iter()
             .map(|row| {
-                let row: Vec<Value>
-                    = row.iter().copied().map(Value::from).collect();
+                let row: Vec<Value> =
+                    row.iter().copied().map(Value::from).collect();
                 Value::Array(row)
             })
             .collect();
@@ -1769,12 +1981,12 @@ impl Matplotlib for FillBetween {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let x: Vec<Value>
-            = self.x.iter().copied().map(Value::from).collect();
-        let y1: Vec<Value>
-            = self.y1.iter().copied().map(Value::from).collect();
-        let y2: Vec<Value>
-            = self.y2.iter().copied().map(Value::from).collect();
+        let x: Vec<Value> =
+            self.x.iter().copied().map(Value::from).collect();
+        let y1: Vec<Value> =
+            self.y1.iter().copied().map(Value::from).collect();
+        let y2: Vec<Value> =
+            self.y2.iter().copied().map(Value::from).collect();
         Some(Value::Array(vec![x.into(), y1.into(), y2.into()]))
     }
 
@@ -1893,12 +2105,12 @@ impl Matplotlib for FillBetweenX {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let y: Vec<Value>
-            = self.y.iter().copied().map(Value::from).collect();
-        let x1: Vec<Value>
-            = self.x1.iter().copied().map(Value::from).collect();
-        let x2: Vec<Value>
-            = self.x2.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> =
+            self.y.iter().copied().map(Value::from).collect();
+        let x1: Vec<Value> =
+            self.x1.iter().copied().map(Value::from).collect();
+        let x2: Vec<Value> =
+            self.x2.iter().copied().map(Value::from).collect();
         Some(Value::Array(vec![y.into(), x1.into(), x2.into()]))
     }
 
@@ -2521,12 +2733,12 @@ impl Matplotlib for Lim {
 
     fn py_cmd(&self) -> String {
         let ax = format!("{:?}", self.axis).to_lowercase();
-        let min
-            = self.min.as_ref()
+        let min =
+            self.min.as_ref()
             .map(|x| format!("{}", x))
             .unwrap_or("None".into());
-        let max
-            = self.max.as_ref()
+        let max =
+            self.max.as_ref()
             .map(|x| format!("{}", x))
             .unwrap_or("None".into());
         format!("ax.set_{}lim({}, {})", ax, min, max)
@@ -2572,12 +2784,12 @@ impl Matplotlib for CLim {
     fn data(&self) -> Option<Value> { None }
 
     fn py_cmd(&self) -> String {
-        let min
-            = self.min.as_ref()
+        let min =
+            self.min.as_ref()
             .map(|x| format!("{}", x))
             .unwrap_or("None".into());
-        let max
-            = self.max.as_ref()
+        let max =
+            self.max.as_ref()
             .map(|x| format!("{}", x))
             .unwrap_or("None".into());
         format!("im.set_clim({}, {})", min, max)
@@ -2864,8 +3076,8 @@ impl Matplotlib for CTicks {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let v: Vec<Value>
-            = self.v.iter().copied().map(Value::from).collect();
+        let v: Vec<Value> =
+            self.v.iter().copied().map(Value::from).collect();
         Some(Value::Array(v))
     }
 
@@ -2927,8 +3139,8 @@ impl TickLabels {
         I: IntoIterator<Item = (f64, S)>,
         S: Into<String>,
     {
-        let (v, s): (Vec<f64>, Vec<String>)
-            = ticklabels.into_iter()
+        let (v, s): (Vec<f64>, Vec<String>) =
+            ticklabels.into_iter()
             .map(|(vk, sk)| (vk, sk.into()))
             .unzip();
         Self { axis, v, s, opts: Vec::new() }
@@ -3082,8 +3294,8 @@ impl CTickLabels {
         I: IntoIterator<Item = (f64, S)>,
         S: Into<String>,
     {
-        let (v, s): (Vec<f64>, Vec<String>)
-            = ticklabels.into_iter()
+        let (v, s): (Vec<f64>, Vec<String>) =
+            ticklabels.into_iter()
             .map(|(vk, sk)| (vk, sk.into()))
             .unzip();
         Self { v, s, opts: Vec::new() }
@@ -3113,10 +3325,10 @@ impl Matplotlib for CTickLabels {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let v: Vec<Value>
-            = self.v.iter().copied().map(Value::from).collect();
-        let s: Vec<Value>
-            = self.s.iter().cloned().map(Value::from).collect();
+        let v: Vec<Value> =
+            self.v.iter().copied().map(Value::from).collect();
+        let s: Vec<Value> =
+            self.s.iter().cloned().map(Value::from).collect();
         Some(Value::Array(vec![v.into(), s.into()]))
     }
 
@@ -3616,12 +3828,12 @@ impl Matplotlib for Plot3 {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let x: Vec<Value>
-            = self.x.iter().copied().map(Value::from).collect();
-        let y: Vec<Value>
-            = self.y.iter().copied().map(Value::from).collect();
-        let z: Vec<Value>
-            = self.z.iter().copied().map(Value::from).collect();
+        let x: Vec<Value> =
+            self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> =
+            self.y.iter().copied().map(Value::from).collect();
+        let z: Vec<Value> =
+            self.z.iter().copied().map(Value::from).collect();
         Some(Value::Array(vec![x.into(), y.into(), z.into()]))
     }
 
@@ -3707,12 +3919,12 @@ impl Matplotlib for Scatter3 {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let x: Vec<Value>
-            = self.x.iter().copied().map(Value::from).collect();
-        let y: Vec<Value>
-            = self.y.iter().copied().map(Value::from).collect();
-        let z: Vec<Value>
-            = self.z.iter().copied().map(Value::from).collect();
+        let x: Vec<Value> =
+            self.x.iter().copied().map(Value::from).collect();
+        let y: Vec<Value> =
+            self.y.iter().copied().map(Value::from).collect();
+        let z: Vec<Value> =
+            self.z.iter().copied().map(Value::from).collect();
         Some(Value::Array(vec![x.into(), y.into(), z.into()]))
     }
 
@@ -3905,16 +4117,16 @@ impl Surface {
         ZI: IntoIterator<Item = ZJ>,
         ZJ: IntoIterator<Item = f64>,
     {
-        let x: Vec<Vec<f64>>
-            = x.into_iter()
+        let x: Vec<Vec<f64>> =
+            x.into_iter()
             .map(|row| row.into_iter().collect())
             .collect();
-        let y: Vec<Vec<f64>>
-            = y.into_iter()
+        let y: Vec<Vec<f64>> =
+            y.into_iter()
             .map(|row| row.into_iter().collect())
             .collect();
-        let z: Vec<Vec<f64>>
-            = z.into_iter()
+        let z: Vec<Vec<f64>> =
+            z.into_iter()
             .map(|row| row.into_iter().collect())
             .collect();
         Self { x, y, z, opts: Vec::new() }
@@ -3931,14 +4143,14 @@ impl Surface {
         Z: IntoIterator<Item = f64>,
     {
         if rowlen == 0 { panic!("row length cannot be zero"); }
-        let x: Vec<Vec<f64>>
-            = Chunks::new(x.into_iter(), rowlen)
+        let x: Vec<Vec<f64>> =
+            Chunks::new(x.into_iter(), rowlen)
             .collect();
-        let y: Vec<Vec<f64>>
-            = Chunks::new(y.into_iter(), rowlen)
+        let y: Vec<Vec<f64>> =
+            Chunks::new(y.into_iter(), rowlen)
             .collect();
-        let z: Vec<Vec<f64>>
-            = Chunks::new(z.into_iter(), rowlen)
+        let z: Vec<Vec<f64>> =
+            Chunks::new(z.into_iter(), rowlen)
             .collect();
         Self { x, y, z, opts: Vec::new() }
     }
@@ -4009,27 +4221,27 @@ impl Matplotlib for Surface {
     fn is_prelude(&self) -> bool { false }
 
     fn data(&self) -> Option<Value> {
-        let x: Vec<Value>
-            = self.x.iter()
+        let x: Vec<Value> =
+            self.x.iter()
             .map(|row| {
-                let row: Vec<Value>
-                    = row.iter().copied().map(Value::from).collect();
+                let row: Vec<Value> =
+                    row.iter().copied().map(Value::from).collect();
                 Value::Array(row)
             })
             .collect();
-        let y: Vec<Value>
-            = self.y.iter()
+        let y: Vec<Value> =
+            self.y.iter()
             .map(|row| {
-                let row: Vec<Value>
-                    = row.iter().copied().map(Value::from).collect();
+                let row: Vec<Value> =
+                    row.iter().copied().map(Value::from).collect();
                 Value::Array(row)
             })
             .collect();
-        let z: Vec<Value>
-            = self.z.iter()
+        let z: Vec<Value> =
+            self.z.iter()
             .map(|row| {
-                let row: Vec<Value>
-                    = row.iter().copied().map(Value::from).collect();
+                let row: Vec<Value> =
+                    row.iter().copied().map(Value::from).collect();
                 Value::Array(row)
             })
             .collect();
@@ -4663,12 +4875,12 @@ mod tests {
 
     #[test]
     fn test_fillbetween_from_errorbar() {
-        let ebar
-            = errorbar_data([(0.0, 0.0, 0.5), (1.0, 1.0, 1.0)]);
-        let ebar2
-            = errorbar2_data([(0.0, 0.25, 0.75, 0.25), (1.0, 1.0, 1.0, 1.0)]);
-        let fbetw
-            = fill_between_data([(0.0, -0.5, 0.5), (1.0, 0.0, 2.0)]);
+        let ebar =
+            errorbar_data([(0.0, 0.0, 0.5), (1.0, 1.0, 1.0)]);
+        let ebar2 =
+            errorbar2_data([(0.0, 0.25, 0.75, 0.25), (1.0, 1.0, 1.0, 1.0)]);
+        let fbetw =
+            fill_between_data([(0.0, -0.5, 0.5), (1.0, 0.0, 2.0)]);
         assert_eq!(FillBetween::from(ebar),  fbetw);
         assert_eq!(FillBetween::from(ebar2), fbetw);
     }
@@ -4930,14 +5142,14 @@ mod tests {
 
     #[test]
     fn test_quiver_eq() {
-        let norm
-            = quiver([0.0, 1.0], [0.0, 1.0], [0.0, 1.0], [0.0, 1.0])
+        let norm =
+            quiver([0.0, 1.0], [0.0, 1.0], [0.0, 1.0], [0.0, 1.0])
             .o("pivot", "middle");
-        let data
-            = quiver_data([(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 1.0, 1.0)])
+        let data =
+            quiver_data([(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 1.0, 1.0)])
                 .o("pivot", "middle");
-        let pairs
-            = quiver_pairs([(0.0, 0.0), (1.0, 1.0)], [(0.0, 0.0), (1.0, 1.0)])
+        let pairs =
+            quiver_pairs([(0.0, 0.0), (1.0, 1.0)], [(0.0, 0.0), (1.0, 1.0)])
                 .o("pivot", "middle");
         assert_eq!(norm, data);
         assert_eq!(norm, pairs);
@@ -5172,22 +5384,22 @@ mod tests {
 
     #[test]
     fn test_ticklabels_eq() {
-        let normx
-            = ticklabels(Axis::X, [0.0, 1.0], ["x:zero", "x:one"]);
-        let normx_data
-            = ticklabels_data(Axis::X, [(0.0, "x:zero"), (1.0, "x:one")]);
-        let aliasx
-            = xticklabels([0.0, 1.0], ["x:zero", "x:one"]);
-        let aliasx_data
-            = xticklabels_data([(0.0, "x:zero"), (1.0, "x:one")]);
-        let normy
-            = ticklabels(Axis::Y, [0.0, 1.0], ["y:zero", "y:one"]);
-        let normy_data
-            = ticklabels_data(Axis::Y, [(0.0, "y:zero"), (1.0, "y:one")]);
-        let aliasy
-            = yticklabels([0.0, 1.0], ["y:zero", "y:one"]);
-        let aliasy_data
-            = yticklabels_data([(0.0, "y:zero"), (1.0, "y:one")]);
+        let normx =
+            ticklabels(Axis::X, [0.0, 1.0], ["x:zero", "x:one"]);
+        let normx_data =
+            ticklabels_data(Axis::X, [(0.0, "x:zero"), (1.0, "x:one")]);
+        let aliasx =
+            xticklabels([0.0, 1.0], ["x:zero", "x:one"]);
+        let aliasx_data =
+            xticklabels_data([(0.0, "x:zero"), (1.0, "x:one")]);
+        let normy =
+            ticklabels(Axis::Y, [0.0, 1.0], ["y:zero", "y:one"]);
+        let normy_data =
+            ticklabels_data(Axis::Y, [(0.0, "y:zero"), (1.0, "y:one")]);
+        let aliasy =
+            yticklabels([0.0, 1.0], ["y:zero", "y:one"]);
+        let aliasy_data =
+            yticklabels_data([(0.0, "y:zero"), (1.0, "y:one")]);
         assert_eq!(normx, normx_data);
         assert_eq!(aliasx, aliasx_data);
         assert_eq!(normx, aliasx);
